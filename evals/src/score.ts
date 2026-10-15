@@ -12,6 +12,8 @@ export interface EvalCase {
 export interface CaseScore {
   id: string;
   intentOk: boolean;
+  /** The intent the engine detected. */
+  gotIntent: Intent;
   /** Share of `keep` terms present in the prompt (case-insensitive). */
   keepRecall: number;
   missingKeep: string[];
@@ -44,6 +46,7 @@ export function scoreCase(c: EvalCase, r: ConvertResult): CaseScore {
   return {
     id: c.id,
     intentOk,
+    gotIntent: r.intent,
     keepRecall: Number(keepRecall.toFixed(2)),
     missingKeep,
     validationOk,

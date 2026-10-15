@@ -48,6 +48,7 @@ Use a different, stronger model as judge than the one rewriting, and read the "J
 ## Rules for the case files
 
 - `cases.json` is for tuning. `holdout.json` is for checking you did not just memorise `cases.json`.
+- `holdout-2.json` is the fresh batch written for session 6, before any tuning (`pnpm eval --set holdout-2`). It is deliberately **not** in the CI regression test: it measures progress, it doesn't gate builds. Offline baseline: `results-holdout-2.md`.
 - When you fix the engine using a holdout miss, that case is spent. Add fresh ones.
 - Add a case whenever you see a real-world miss. Keep `keep` to words that really must survive.
 - `packages/core/test/eval-regression.test.ts` fails CI if offline intent accuracy drops below 95% on either set.

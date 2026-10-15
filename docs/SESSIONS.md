@@ -10,7 +10,7 @@ Each session follows the plan doc: branch `s<n>-<goal>`, build only that row, ru
 | 4 | Profiles, templates, meta-prompt, `convert()` | Done | 11 targets, 11 intent templates, meta-prompt v1, offline renderer, validators, one repair pass, offline fallback |
 | 6 (part) | CLI | Done | `pf convert / analyze / models / targets`; live token streaming |
 | 5 | Validators + eval harness | Done | 102-case tuned set + 30-case held-out set, deterministic scorer, blind A/B LLM judge (`pnpm eval -j`), baseline in `evals/results.md`, CI regression test. Intent accuracy 84% → 100% on tuned; held-out first run 77% (see results) |
-| 6 | Tuning | In progress | Run the blind judge with a real model; converted prompt must win ≥ 85% of comparisons. Write a fresh held-out batch first. **Prep done:** eval reports which model runs fell back and why, plus a model-only score; provider timeouts are idle-based; local models run one request at a time; `--limit` samples across intents; judge A/B order no longer depends on finish order |
+| 6 | Tuning | In progress | Run the blind judge with a real model; converted prompt must win ≥ 85% of comparisons. Write a fresh held-out batch first. **Prep done:** eval reports which model runs fell back and why, plus a model-only score; provider timeouts are idle-based; local models run one request at a time; `--limit` samples across intents; judge A/B order no longer depends on finish order; CI added. **Fresh held-out batch** `evals/holdout-2.json` (35 cases, all 11 intents): offline intent 22/35 (63%), details kept 100%, validators 100% — see `evals/results-holdout-2.md` |
 | 7 | Browser extension scaffold | — | WXT, background worker calls core |
 
 ## Decisions taken while building
@@ -35,7 +35,7 @@ Session 6 prep: 61 tests (providers 10, incl. slow-stream and stalled-stream tim
 
 ## Known limits (be honest with yourself)
 
-- Intent detection is keyword rules. Held-out accuracy was 77% before general fixes; expect real-world accuracy somewhere below the 100% on the tuned set. When a model is connected, a wrong intent still steers the rewrite, so session 6 should let the model confirm or override the detected intent.
+- Intent detection is keyword rules. Held-out accuracy was 77% before general fixes; expect real-world accuracy somewhere below the 100% on the tuned set. **Confirmed by the fresh batch: 63%.** The rules latch onto surface words: "discount *code*" → coding, "data *analyst*" → analysis, "app *crashes*" → debugging, "chore *schedule*" → agent, Hinglish "likh do" → writing. Don't patch the rules from these cases (that spends them). When a model is connected, a wrong intent still steers the rewrite, so session 6 should let the model confirm or override the detected intent.
 - The eval so far proves the engine keeps your meaning and meets structure rules. It does **not** yet prove the prompts get better answers. That is what the blind judge is for.
 - First live run (15 Oct 2026, qwen2.5:7b on Ollama, M2 / 16 GB): with a training job holding the GPU and swap nearly full, the model generated about **3 tokens/s**. 9 of 10 cases hit the old 120 s total timeout and silently fell back to rules, so the reported 96.0 was mostly the offline engine. Timeout and reporting are fixed, but at that speed a full 102-case run takes hours: free the GPU first and use `--limit` for quick loops.
 - Model drafts run long: the cases that did use the model failed the length budget (e.g. 185 words against a budget of 126, even after the repair pass). First thing to tune.

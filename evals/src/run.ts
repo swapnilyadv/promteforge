@@ -215,7 +215,7 @@ async function main() {
     console.log('\nCases below 100:');
     for (const r of failing) {
       const bits = [
-        r.s.intentOk ? '' : `intent want ${r.c.intent}`,
+        r.s.intentOk ? '' : `intent want ${r.c.intent}, got ${r.s.gotIntent}`,
         r.s.missingKeep.length ? `missing: ${r.s.missingKeep.join(', ')}` : '',
         r.s.issues.length ? `issues: ${r.s.issues.join(', ')}` : '',
       ].filter(Boolean);
@@ -260,7 +260,7 @@ async function main() {
   md.push('', '## Cases below 100', '', '| Case | Score | Problem |', '| --- | --- | --- |');
   for (const r of failing) {
     const bits = [
-      r.s.intentOk ? '' : `intent: wanted ${r.c.intent}`,
+      r.s.intentOk ? '' : `intent: wanted ${r.c.intent}, got ${r.s.gotIntent}`,
       r.s.missingKeep.length ? `missing ${r.s.missingKeep.map((m) => `"${m}"`).join(', ')}` : '',
       r.s.issues.length ? `validator: ${r.s.issues.join(', ')}` : '',
       !r.s.lengthOk ? 'length' : '',
