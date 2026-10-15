@@ -25,6 +25,7 @@ Each session follows the plan doc: branch `s<n>-<goal>`, build only that row, ru
 - **Intent rules: ties go to the more specific intent**; "coding" keywords are broad so it loses ties. A code editor target only nudges (+0.5), never overrides a stated task.
 - Default cloud model names (`gpt-4o-mini`, `claude-haiku-5-5`, `gemini-2.5-flash`) are only defaults; pass `--model` / `model` to change them.
 - **Provider timeouts are idle timeouts** (no data for 60 s; 120 s for local models), not a cap on total time. A slow local model that keeps streaming is never cut off; `maxTokens` bounds the length.
+- **Anthropic adapter sends no sampling parameters** (current Claude models reject `temperature`/`top_p` with a 400) and adds 4096 tokens of headroom to `max_tokens`, because those models always think and `max_tokens` caps thinking + answer together. A refusal becomes an error, not an empty answer.
 - **A fallback is reported, never hidden.** `convert()` returns `fallback: { reason, detail }` when a model was given but its output wasn't used, and the eval scores model output separately from fallbacks.
 
 ## Verified through session 5

@@ -5,9 +5,15 @@ export const ANTHROPIC_DEFAULT_MODEL = 'claude-haiku-5-5';
 
 interface AnthropicEvent {
   type?: string;
-  delta?: { type?: string; text?: string };
+  delta?: { type?: string; text?: string; stop_reason?: string };
   error?: { message?: string };
 }
+
+/**
+ * Current Claude models always think, and `max_tokens` caps thinking + answer together.
+ * `maxTokens` means "room for the answer", so add headroom for thinking (only tokens used are billed).
+ */
+const THINKING_HEADROOM = 4096;
 
 /** Anthropic Messages API. System messages are lifted into the top-level `system` field. */
 export function createAnthropic(cfg: AnthropicConfig): Provider {
@@ -40,8 +46,8 @@ export function createAnthropic(cfg: AnthropicConfig): Provider {
         `${baseUrl}/v1/messages`,
         {
           model: req.model ?? model,
-          max_tokens: req.maxTokens ?? 2048,
-          temperature: req.temperature ?? 0.3,
+          max_tokens: (req.maxTokens ?? 2048) + THINKING_HEADROOM,
+          // No `temperature`: current Claude models reject sampling parameters with a 400.
           ...(system ? { system } : {}),
           messages,
           stream: true,
@@ -57,6 +63,9 @@ export function createAnthropic(cfg: AnthropicConfig): Provider {
         }
         if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta' && evt.delta.text) {
           yield evt.delta.text;
+        }
+        if (evt.type === 'message_delta' && evt.delta?.stop_reason === 'refusal') {
+          throw new ProviderError('anthropic: the model declined this request (stop_reason: refusal)', 'anthropic');
         }
         if (evt.type === 'message_stop') return;
       }

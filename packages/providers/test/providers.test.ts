@@ -148,6 +148,26 @@ describe('anthropic', () => {
     const headers = calls[0]!.init.headers as Record<string, string>;
     expect(headers['anthropic-dangerous-direct-browser-access']).toBe('true');
   });
+
+  it('sends no sampling params and leaves room for thinking', async () => {
+    const { impl, calls } = fakeFetch('data: {"type":"message_stop"}\n\n');
+    await createProvider({ type: 'anthropic', apiKey: 'k', fetch: impl }).generate({
+      messages: msgs,
+      temperature: 0,
+      maxTokens: 200,
+    });
+    const body = JSON.parse(String(calls[0]!.init.body));
+    expect(body).not.toHaveProperty('temperature');
+    expect(body.max_tokens).toBeGreaterThan(200);
+  });
+
+  it('turns a refusal into an error instead of an empty answer', async () => {
+    const { impl } = fakeFetch(
+      'data: {"type":"message_delta","delta":{"stop_reason":"refusal"}}\n\ndata: {"type":"message_stop"}\n\n',
+    );
+    const p = createProvider({ type: 'anthropic', apiKey: 'k', fetch: impl });
+    await expect(p.generate({ messages: msgs })).rejects.toThrow(/refusal/);
+  });
 });
 
 describe('gemini', () => {
