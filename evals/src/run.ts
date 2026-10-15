@@ -15,6 +15,7 @@ const HELP = `PromptForge eval harness
   pnpm eval                          offline baseline (rules only, no model, no cost)
   pnpm eval -p ollama -m qwen2.5:7b  rewrite with a model
   pnpm eval -j anthropic             also run the blind pairwise judge with this provider
+  pnpm eval -j ollama --judge-model llama3.1:8b   free local judge (use a different model than -m)
   pnpm eval --set holdout            run the held-out cases (not used for tuning)
   pnpm eval --only code,dbg          only case ids starting with these prefixes
   pnpm eval --limit 11               quick run: N cases spread across all intents
@@ -48,17 +49,6 @@ function provider(name: string, model?: string): Provider | undefined {
   if (!make) throw new Error(`Unknown provider "${name}"`);
   const c = make();
   return c ? createProvider(c) : undefined;
-}
-
-/** Small deterministic PRNG so judge A/B order is reproducible between runs. */
-function mulberry32(seed: number) {
-  return () => {
-    seed |= 0;
-    seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 }
 
 async function pool<T, R>(items: T[], size: number, fn: (x: T) => Promise<R>): Promise<R[]> {
@@ -143,30 +133,55 @@ async function main() {
   const judge = values.judge ? provider(values.judge, values['judge-model']) : undefined;
   // A local model serves one request at a time; parallel requests just queue up and time out.
   const concurrency = values.concurrency ? positiveInt('concurrency', values.concurrency) : gen ? (gen.isLocal ? 1 : 3) : 8;
-  // Draw each case's A/B order up front, so the judge's order doesn't depend on which request finishes first.
-  const rng = mulberry32(42);
-  const coin = new Map(cases.map((c) => [c.id, rng()]));
   const label = gen ? `${gen.id}${values.model ? ` (${values.model})` : ''}` : 'offline (rules only)';
+  const judgeLabel = judge ? `${judge.id}${values['judge-model'] ? ` (${values['judge-model']})` : ''}` : 'none';
 
-  console.log(`Running ${cases.length} cases · engine: ${label} · judge: ${judge ? judge.id : 'none'} · ${concurrency} at a time`);
+  console.log(`Running ${cases.length} cases · engine: ${label} · judge: ${judgeLabel} · ${concurrency} at a time`);
 
+  // Phase 1: rewrite every case.
   const t0 = Date.now();
   const rows = await pool(cases, concurrency, async (c): Promise<Row> => {
     const r = await convert({ text: c.text, target: c.target, style, provider: gen, model: values.model });
     const s = scoreCase(c, r);
-    let verdict: JudgeVerdict | undefined;
-    if (judge) {
-      try {
-        verdict = await judgePair(judge, PROFILES[c.target].label, c.text, r.prompt, () => coin.get(c.id)!);
-      } catch (e) {
-        console.error(`judge failed on ${c.id}: ${e instanceof Error ? e.message : e}`);
-      }
-    }
     process.stdout.write(r.fallback ? 'f' : '.');
-    return { c, s, mode: r.mode, fallback: r.fallback, words: r.validation.words, ms: r.ms, verdict, prompt: r.prompt };
+    return { c, s, mode: r.mode, fallback: r.fallback, words: r.validation.words, ms: r.ms, prompt: r.prompt };
   });
+  console.log(`\n\nRewrote ${rows.length} cases in ${duration(Date.now() - t0)}\n`);
+
+  // Phase 2: judge, as a separate pass so a local judge isn't swapped in and out of memory
+  // with the rewriting model on every case. Each pair is judged in both A/B orders: a verdict
+  // that flips with the order is position bias, and counts as a tie.
+  let judgeCalls = 0;
+  let judgeFailed = 0;
+  let flips = 0;
+  if (judge) {
+    const t1 = Date.now();
+    const ask = async (row: Row, engineeredFirst: boolean): Promise<JudgeVerdict | undefined> => {
+      judgeCalls++;
+      try {
+        const v = await judgePair(judge, PROFILES[row.c.target].label, row.c.text, row.prompt, () => (engineeredFirst ? 0 : 1));
+        if (!v) judgeFailed++;
+        return v;
+      } catch (e) {
+        judgeFailed++;
+        console.error(`judge failed on ${row.c.id}: ${e instanceof Error ? e.message : e}`);
+        return undefined;
+      }
+    };
+    await pool(rows, judge.isLocal ? 1 : 3, async (row) => {
+      const first = await ask(row, true);
+      const second = await ask(row, false);
+      if (first && second && first.winner !== second.winner) {
+        flips++;
+        row.verdict = { winner: 'tie', reason: `verdict changed when A/B were swapped (${first.winner}, then ${second.winner})` };
+      } else {
+        row.verdict = first ?? second;
+      }
+      process.stdout.write(row.verdict ? 'j' : 'x');
+    });
+    console.log(`\n\nJudged ${rows.length} pairs (${judgeCalls} calls) in ${duration(Date.now() - t1)}\n`);
+  }
   const elapsed = duration(Date.now() - t0);
-  console.log(`\n\nFinished in ${elapsed}\n`);
 
   // ---- aggregate ----
   const n = rows.length;
@@ -209,6 +224,7 @@ async function main() {
     line('Win rate counting ties as half', pct(wins + ties / 2, judged.length));
     if (gen) line('Judge wins, model output only', `${modelWins}/${judgedModel.length} (${pct(modelWins, judgedModel.length)})`);
   }
+  if (judge) line('Judge: order flips · failed calls', `${flips}/${judged.length} · ${judgeFailed}/${judgeCalls}`);
 
   const failing = rows.filter((r) => r.s.score < 100).sort((a, b) => a.s.score - b.s.score);
   if (values.verbose) {
@@ -225,13 +241,18 @@ async function main() {
       console.log('\nFell back to the rules-based prompt:');
       for (const r of fellBack) console.log(`  ${r.c.id.padEnd(8)} ${r.fallback!.reason}: ${r.fallback!.detail}`);
     }
+    const lost = judged.filter((r) => r.verdict!.winner === 'original');
+    if (lost.length) {
+      console.log('\nJudge preferred the original:');
+      for (const r of lost) console.log(`  ${r.c.id.padEnd(8)} ${r.verdict!.reason}`);
+    }
   }
 
   // ---- report ----
   const md: string[] = [];
   md.push('# PromptForge eval results', '');
   md.push(`- Engine: **${label}**, style \`${style}\``);
-  md.push(`- Judge: ${judge ? `**${judge.id}** (blind, A/B order randomised)` : 'not run'}`);
+  md.push(`- Judge: ${judge ? `**${judgeLabel}** (blind; each pair judged in both A/B orders, a flip counts as a tie)` : 'not run'}`);
   md.push(`- Cases: ${n}${n < total ? ` of ${total} (\`--limit\`, spread across intents)` : ''} · Core profiles v${PROFILES.claude.version}`);
   md.push(`- Run time: ${elapsed}, ${concurrency} at a time`, '');
   md.push('## Summary', '');
@@ -249,6 +270,7 @@ async function main() {
     if (gen) md.push(`| Judge wins, model output only | ${modelWins}/${judgedModel.length} (${pct(modelWins, judgedModel.length)}) |`);
     md.push(`| Target (session 6) | ≥ 85% |`);
   }
+  if (judge) md.push(`| Judge: verdicts that flipped with A/B order · failed calls | ${flips}/${judged.length} · ${judgeFailed}/${judgeCalls} |`);
   md.push('', '## By intent', '', '| Intent | Cases | Intent ok | Keep recall | Mean score |', '| --- | --- | --- | --- | --- |');
   for (const [k, rs] of [...byIntent].sort()) {
     md.push(`| ${k} | ${rs.length} | ${pct(rs.filter((r) => r.s.intentOk).length, rs.length)} | ${Math.round(avg(rs.map((r) => r.s.keepRecall)) * 100)}% | ${avg(rs.map((r) => r.s.score)).toFixed(1)} |`);

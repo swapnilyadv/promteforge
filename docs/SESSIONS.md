@@ -26,6 +26,7 @@ Each session follows the plan doc: branch `s<n>-<goal>`, build only that row, ru
 - Default cloud model names (`gpt-4o-mini`, `claude-haiku-5-5`, `gemini-2.5-flash`) are only defaults; pass `--model` / `model` to change them.
 - **Provider timeouts are idle timeouts** (no data for 60 s; 120 s for local models), not a cap on total time. A slow local model that keeps streaming is never cut off; `maxTokens` bounds the length.
 - **Anthropic adapter sends no sampling parameters** (current Claude models reject `temperature`/`top_p` with a 400) and adds 4096 tokens of headroom to `max_tokens`, because those models always think and `max_tokens` caps thinking + answer together. A refusal becomes an error, not an empty answer.
+- **Local judge only: no paid APIs.** The blind judge runs on Ollama (`llama3.1:8b`, a different model from the `qwen2.5:7b` rewriter). A small judge has position bias, so every pair is judged in both A/B orders and a flipped verdict counts as a tie; judging runs as a second pass so the two models aren't swapped in memory per case.
 - **A fallback is reported, never hidden.** `convert()` returns `fallback: { reason, detail }` when a model was given but its output wasn't used, and the eval scores model output separately from fallbacks.
 
 ## Verified through session 5

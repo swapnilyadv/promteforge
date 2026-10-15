@@ -41,9 +41,16 @@ These are cheap, deterministic **floor** checks: they catch broken output, not m
 
 ## The blind judge (`-j`)
 
-For each case a judge model sees the raw request and the engineered prompt as **A and B in random order** (seeded, so runs are repeatable) and picks which would get the better answer from the target AI. Report: wins / ties / losses. **Session 6 target: engineered prompt wins ≥ 85%.**
+For each case a judge model sees the raw request and the engineered prompt as A and B and picks which would get the better answer from the target AI. **Every pair is judged twice, once in each order**; if the verdict changes with the order, that's position bias and it counts as a tie. Report: wins / ties / losses, plus how many verdicts flipped and how many judge calls failed. **Session 6 target: engineered prompt wins ≥ 85%.**
 
-Use a different, stronger model as judge than the one rewriting, and read the "Judge preferred the original" table in the report: those are the cases to learn from.
+Judging runs as a second pass after all rewrites, so a local judge isn't swapped in and out of memory with the rewriting model on every case.
+
+```bash
+# Free, local: judge with a different model than the one rewriting
+pnpm eval -p ollama -m qwen2.5:7b -j ollama --judge-model llama3.1:8b --limit 11 --verbose
+```
+
+Use a different model as judge than the one rewriting, ideally a stronger one. A small local judge is a rough signal: check the flip count before trusting the win rate. Read the "Judge preferred the original" table in the report: those are the cases to learn from.
 
 ## Rules for the case files
 
