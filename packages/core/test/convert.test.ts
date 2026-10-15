@@ -103,6 +103,11 @@ describe('convert — with a model', () => {
     // Meta-prompt carries Claude-specific rules and the user's text
     expect(seen!.messages[0]!.content).toContain('XML');
     expect(seen!.messages[1]!.content).toContain(BAKERY);
+    // A short request gets a short brief: fewer sections, no generic tips, the limit restated last
+    const user = seen!.messages[1]!.content;
+    expect(user).toContain('use at most 3');
+    expect(user).not.toContain('Good-practice instructions');
+    expect(user.trim().split('\n').at(-1)).toMatch(/Hard limit: \d+ words/);
   });
 
   it('repairs once when the first draft fails validation', async () => {
