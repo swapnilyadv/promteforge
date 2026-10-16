@@ -10,8 +10,8 @@ Each session follows the plan doc: branch `s<n>-<goal>`, build only that row, ru
 | 4 | Profiles, templates, meta-prompt, `convert()` | Done | 11 targets, 11 intent templates, meta-prompt v1, offline renderer, validators, one repair pass, offline fallback |
 | 6 (part) | CLI | Done | `pf convert / analyze / models / targets`; live token streaming |
 | 5 | Validators + eval harness | Done | 102-case tuned set + 30-case held-out set, deterministic scorer, blind A/B LLM judge (`pnpm eval -j`), baseline in `evals/results.md`, CI regression test. Intent accuracy 84% → 100% on tuned; held-out first run 77% (see results) |
-| 6 | Tuning | In progress | Run the blind judge with a real model; converted prompt must win ≥ 85% of comparisons. Write a fresh held-out batch first. **Prep done:** eval reports which model runs fell back and why, plus a model-only score; provider timeouts are idle-based; local models run one request at a time; `--limit` samples across intents; judge A/B order no longer depends on finish order; CI added. **Fresh held-out batch** `evals/holdout-2.json` (35 cases, all 11 intents): offline intent 22/35 (63%), details kept 100%, validators 100% — see `evals/results-holdout-2.md` |
-| 7 | Browser extension scaffold | — | WXT, background worker calls core |
+| 6 | Tuning | Paused (target open) | Local blind judge (qwen2.5:7b rewrites, llama3.1:8b judges, both A/B orders). Fixed: length (6/11 → 0/11 over budget), dropped details, false structure alarms, model confirms intent when rules are unsure (unseen batch 63% → 83%). Last full run, 102 cases: validators 90%, details kept 96%, judge wins 61% + 40 ties (80% counting ties as half), 0 losses. **85% target not met: the 8B judge flips with A/B order in ~40% of pairs.** Held-out first run was invalid (8 of 30 cases hit Ollama stalls). Still owed: a stronger judge or a checklist score, a clean held-out rerun, tag `v0.6` |
+| 7 | Browser extension scaffold | In progress | WXT, background worker calls core, Forge button in the Claude / ChatGPT / Gemini chat box (branch `s7-extension`) |
 
 ## Decisions taken while building
 
