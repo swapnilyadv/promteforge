@@ -75,3 +75,16 @@ export async function listOllamaModels(
     return [];
   }
 }
+
+/** Models the engine was measured with, best first. Anything else installed comes after, in list order. */
+const PREFERRED_FAMILIES = ['qwen2.5', 'llama3.1'];
+
+/** The user's choice if it is installed; otherwise the best-measured installed model. */
+export function pickOllamaModel(chosen: string, installed: string[]): string | undefined {
+  if (chosen && (installed.length === 0 || installed.includes(chosen))) return chosen;
+  for (const family of PREFERRED_FAMILIES) {
+    const hit = installed.find((m) => m.startsWith(family));
+    if (hit) return hit;
+  }
+  return installed[0];
+}

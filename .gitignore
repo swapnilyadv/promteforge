@@ -9,3 +9,5 @@ coverage/
 
 .output/
 .wxt/
+out/
+*.vsix

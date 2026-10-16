@@ -12,6 +12,7 @@ export { createMock } from './mock.js';
 export {
   createOllama,
   listOllamaModels,
+  pickOllamaModel,
   OLLAMA_DEFAULT_MODEL,
   OLLAMA_DEFAULT_URL,
 } from './ollama.js';

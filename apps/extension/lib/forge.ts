@@ -1,5 +1,5 @@
 import { convert, detectTarget } from '@promptforge/core';
-import { createProvider, listOllamaModels, type Provider } from '@promptforge/providers';
+import { createProvider, listOllamaModels, pickOllamaModel, type Provider } from '@promptforge/providers';
 import type { ForgeResponse, StatusResponse } from './messages.js';
 import type { Settings } from './settings.js';
 
@@ -13,18 +13,7 @@ export async function status(s: Settings): Promise<StatusResponse> {
   return { running: models.length > 0, models };
 }
 
-/** Models the engine was measured with, best first. Anything else installed comes after, in list order. */
-const PREFERRED = ['qwen2.5', 'llama3.1'];
-
-/** The user's choice if it is installed; otherwise the best-measured installed model. */
-export function pickModel(chosen: string, installed: string[]): string | undefined {
-  if (chosen && (installed.length === 0 || installed.includes(chosen))) return chosen;
-  for (const family of PREFERRED) {
-    const hit = installed.find((m) => m.startsWith(family));
-    if (hit) return hit;
-  }
-  return installed[0];
-}
+export const pickModel = pickOllamaModel;
 
 /** The whole job of the Forge button: rough text + page URL in, an engineered prompt out. */
 export interface ForgeHooks {

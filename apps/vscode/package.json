@@ -1,0 +1,55 @@
+{
+  "name": "promptforge",
+  "displayName": "PromptForge",
+  "version": "0.1.0",
+  "publisher": "promptforge",
+  "private": true,
+  "description": "Turn rough text into a model-aware prompt, using a model on your own computer. Works in VS Code, Cursor and Antigravity.",
+  "repository": { "type": "git", "url": "https://github.com/swapnilyadv/promteforge" },
+  "license": "UNLICENSED",
+  "engines": { "vscode": "^1.90.0" },
+  "categories": ["AI", "Other"],
+  "keywords": ["prompt", "ollama", "ai", "cursor", "claude", "chatgpt"],
+  "main": "./out/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      { "command": "promptforge.forgeSelection", "title": "Forge Selection into a Prompt", "category": "PromptForge" },
+      { "command": "promptforge.write", "title": "Write a Prompt…", "category": "PromptForge" },
+      { "command": "promptforge.chooseModel", "title": "Choose Model…", "category": "PromptForge" }
+    ],
+    "keybindings": [
+      { "command": "promptforge.forgeSelection", "key": "alt+shift+f", "mac": "alt+shift+f", "when": "editorTextFocus && !editorReadonly" },
+      { "command": "promptforge.write", "key": "alt+shift+w", "mac": "alt+shift+w" }
+    ],
+    "menus": {
+      "editor/context": [
+        { "command": "promptforge.forgeSelection", "when": "editorHasSelection && !editorReadonly", "group": "9_promptforge@1" }
+      ]
+    },
+    "configuration": {
+      "title": "PromptForge",
+      "properties": {
+        "promptforge.model": { "type": "string", "default": "", "description": "Ollama model to use. Empty picks an installed one (qwen2.5 first, then llama3.1)." },
+        "promptforge.style": { "type": "string", "enum": ["concise", "balanced", "detailed"], "default": "balanced", "description": "How long and thorough the prompt should be." },
+        "promptforge.ollamaUrl": { "type": "string", "default": "http://localhost:11434", "description": "Where Ollama is running." },
+        "promptforge.copyResult": { "type": "boolean", "default": true, "description": "Also copy the finished prompt to the clipboard, ready to paste into a chat box." }
+      }
+    }
+  },
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --platform=node --format=cjs --target=node20 --external:vscode --sourcemap --outfile=out/extension.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "package": "pnpm run build && vsce package --no-dependencies --skip-license -o promptforge.vsix"
+  },
+  "dependencies": {
+    "@promptforge/core": "workspace:*",
+    "@promptforge/providers": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.0.0",
+    "esbuild": "^0.21.5"
+  }
+}
