@@ -128,6 +128,7 @@ describe('convert — with a model', () => {
     let repairAsk = '';
     const provider = createMock({
       reply: (req) => {
+        if (req.messages[0]!.content.startsWith('You label')) return 'other'; // the intent check isn't a rewrite call
         if (++calls === 2) repairAsk = req.messages.at(-1)!.content;
         return calls === 1 ? short : full;
       },
@@ -138,6 +139,39 @@ describe('convert — with a model', () => {
     expect(r.mode).toBe('llm');
     expect(r.prompt).toContain('mid range');
     expect(r.validation.issues.map((i) => i.code)).not.toContain('dropped-details');
+  });
+
+  it('lets the model override an unsure keyword guess, and says so', async () => {
+    // No keyword fires for this request (rules say "other"), but it is clearly a brainstorm.
+    const text = 'fun team activities for a remote team of 12 people across 3 time zones, nothing cringe';
+    let intentAsked = false;
+    const provider = createMock({
+      reply: (req) => {
+        if (req.messages[0]!.content.startsWith('You label')) {
+          intentAsked = true;
+          return 'brainstorming';
+        }
+        return '## Goal\nSuggest fun team activities for a remote team of 12 people across 3 time zones, nothing cringe.\n## Output format\nA short list.';
+      },
+    });
+    const r = await convert({ text, target: 'chatgpt', provider });
+    expect(intentAsked).toBe(true);
+    expect(r.intent).toBe('brainstorming');
+    expect(r.intentSource).toBe('model');
+  });
+
+  it('keeps the rules when the model check fails or is unclear, and never asks when told the intent', async () => {
+    const text = 'give me a high protein vegetarian meal plan for a week';
+    const unclear = createMock({ reply: (req) => (req.messages[0]!.content.startsWith('You label') ? 'maybe coding or writing' : '## Goal\nMeal plan.\n## Output format\nA table.') });
+    const r = await convert({ text, target: 'chatgpt', provider: unclear });
+    expect(r.intentSource).toBe('rules');
+
+    let asked = 0;
+    const counting = createMock({ reply: (req) => (req.messages[0]!.content.startsWith('You label') ? (asked++, 'coding') : '## Goal\nMeal plan.\n## Output format\nA table.') });
+    const forced = await convert({ text, target: 'chatgpt', provider: counting, intent: 'other' });
+    expect(asked).toBe(0);
+    expect(forced.intent).toBe('other');
+    expect(forced.intentSource).toBe('user');
   });
 
   it('falls back to offline when the model drops the user meaning', async () => {

@@ -84,6 +84,8 @@ export interface ConvertOptions {
   style?: Style;
   /** Allow the rewrite to end with up to 3 clarifying questions. Default true. */
   askQuestions?: boolean;
+  /** Force the task type (e.g. the user picked it in a UI). Skips detection and the model check. */
+  intent?: Intent;
   /** LLM backend. Omit for the offline, rules-only converter. */
   provider?: Provider;
   model?: string;
@@ -122,6 +124,8 @@ export interface ConvertResult {
   target: Target;
   intent: Intent;
   intentConfidence: number;
+  /** Who chose the intent: keyword rules, the model (when the rules were unsure), or the caller. */
+  intentSource: 'rules' | 'model' | 'user';
   style: Style;
   language: string;
   /** 'llm' = rewritten by a model; 'offline' = built by rules only. */
