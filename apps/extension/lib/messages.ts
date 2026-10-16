@@ -23,3 +23,9 @@ export interface StatusResponse {
 export type Message =
   | { type: 'forge'; text: string; url: string }
   | { type: 'status' };
+
+/** Messages on the long-lived 'forge' port: one request in, progress and one result out. */
+export type PortIn = { type: 'forge'; text: string; url: string };
+export type PortOut =
+  | { type: 'progress'; stage: 'checking-intent' | 'rewriting' | 'repairing'; words: number }
+  | { type: 'done'; result: ForgeResponse };

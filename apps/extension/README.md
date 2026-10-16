@@ -1,6 +1,6 @@
 # PromptForge extension (Chrome)
 
-Adds a **Forge** button above the message box on claude.ai, chatgpt.com and gemini.google.com. Type a rough message, press Forge (or `⌥⇧F`), and it is rewritten in place for that site's AI by a model on your own computer. Press **Undo** in the pop-up note to get your original text back. Nothing is sent to a server.
+Adds a **Forge** button on the top-right edge of the message box on claude.ai, chatgpt.com and gemini.google.com. Type a rough message, press Forge (or `⌥⇧F`), and it is rewritten in place for that site's AI by a model on your own computer. While it works you see the step it is on, the words written so far, a timer and a **Cancel** button. When it is done, press **Undo** in the note to get your original text back. Nothing is sent to a server.
 
 ## Try it
 

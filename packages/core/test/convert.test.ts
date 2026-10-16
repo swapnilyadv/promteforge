@@ -174,6 +174,22 @@ describe('convert — with a model', () => {
     expect(forced.intentSource).toBe('user');
   });
 
+  it('reports each slow step as it starts, so a UI can show progress', async () => {
+    const stages: string[] = [];
+    const text = 'plan a 3 day trip to jaipur for a couple on a mid range budget';
+    let calls = 0;
+    const provider = createMock({
+      reply: (req) => {
+        if (req.messages[0]!.content.startsWith('You label')) return 'other';
+        return ++calls === 1 ? '## Goal\nPlan a trip to Jaipur.\n## Output format\nA plan.' : '## Goal\nPlan a 3 day trip to Jaipur for a couple on a mid range budget.\n## Output format\nA plan.';
+      },
+    });
+    await convert({ text, target: 'chatgpt', provider, onStage: (s) => stages.push(s) });
+    expect(stages).toContain('rewriting');
+    expect(stages.at(-1)).toBe('repairing');
+    expect(stages.indexOf('rewriting')).toBeLessThan(stages.indexOf('repairing'));
+  });
+
   it('falls back to offline when the model drops the user meaning', async () => {
     const provider = createMock({ reply: '## Goal\nWrite a poem about the sea.\n## Output format\nA poem.' });
     const r = await convert({ text: BAKERY, target: 'chatgpt', provider });

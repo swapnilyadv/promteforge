@@ -27,11 +27,19 @@ export function pickModel(chosen: string, installed: string[]): string | undefin
 }
 
 /** The whole job of the Forge button: rough text + page URL in, an engineered prompt out. */
+export interface ForgeHooks {
+  signal?: AbortSignal;
+  /** Each streamed piece of the prompt, for a live preview. */
+  onToken?: (token: string) => void;
+  onStage?: (stage: 'checking-intent' | 'rewriting' | 'repairing') => void;
+}
+
 export async function forge(
   req: { text: string; url: string },
   s: Settings,
   makeProvider: MakeProvider = ollamaProvider,
   installed?: string[],
+  hooks: ForgeHooks = {},
 ): Promise<ForgeResponse> {
   const text = req.text.trim();
   if (!text) return { ok: false, error: 'There is no text to rewrite.' };
@@ -44,6 +52,9 @@ export async function forge(
       style: s.style,
       provider: models.length ? makeProvider(s, model) : undefined,
       model,
+      signal: hooks.signal,
+      onToken: hooks.onToken,
+      onStage: hooks.onStage,
     });
     const warnings = [...result.warnings];
     if (!models.length) warnings.unshift('Ollama is not running, so this prompt was built from rules only.');
@@ -58,6 +69,7 @@ export async function forge(
       warnings,
     };
   } catch (err) {
+    if (hooks.signal?.aborted) return { ok: false, error: 'Cancelled.' };
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }

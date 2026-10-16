@@ -92,6 +92,8 @@ export interface ConvertOptions {
   signal?: AbortSignal;
   /** Called with each streamed token of the final prompt. */
   onToken?: (token: string) => void;
+  /** Called when a slower step starts, so a UI can say what it is waiting for. */
+  onStage?: (stage: 'checking-intent' | 'rewriting' | 'repairing') => void;
   /** Send detected secrets to a cloud provider instead of redacting them. Default false. */
   allowSecretsToCloud?: boolean;
 }

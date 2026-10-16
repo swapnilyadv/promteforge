@@ -137,6 +137,7 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
   if (opts.provider && !opts.intent && a.intentConfidence < INTENT_CONFIRM_BELOW) {
     const sendSecrets = opts.provider.isLocal || opts.allowSecretsToCloud;
     const text = sendSecrets ? restoreSecrets(a.normalized.text, a.normalized.redactions) : a.normalized.text;
+    opts.onStage?.('checking-intent');
     const confirmed = await confirmIntent(opts.provider, text, a.intent, { model: opts.model, signal: opts.signal });
     if (confirmed && confirmed !== a.intent) {
       a = analyze({ ...opts, intent: confirmed });
@@ -213,11 +214,13 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
     const maxTokens = Math.round((a.budget + inputWords) * 2.2) + 200;
 
     try {
+      opts.onStage?.('rewriting');
       let draft = postprocess(await runModel(provider, messages, opts, maxTokens, true));
       let report = validateFor(draft);
 
       if (!report.ok) {
         repairs = 1;
+        opts.onStage?.('repairing');
         const fixed = postprocess(
           await runModel(provider, buildRepairMessages(messages, draft, report.issues), opts, maxTokens, false),
         );
