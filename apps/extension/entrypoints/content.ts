@@ -137,6 +137,8 @@ export default defineContentScript({
       busy = true;
       pill.disabled = true;
       label.innerHTML = '<span class="spin">◐</span> Forging';
+      // A local model can take a while to load or to finish a busy queue: say so instead of looking frozen.
+      const slow = window.setTimeout(() => say('Still working… the model may be loading or busy. This is normal on the first try.', { ms: 120000 }), 8000);
       try {
         const res = (await ask({ type: 'forge', text, url: location.href })) as ForgeResponse | undefined;
         if (!res) throw new Error('No answer from the extension. Reload this tab and try again.');
@@ -149,6 +151,7 @@ export default defineContentScript({
       } catch (err) {
         say(esc(err instanceof Error ? err.message : String(err)), { error: true });
       } finally {
+        clearTimeout(slow);
         busy = false;
         pill.disabled = false;
         label.textContent = 'Forge';
