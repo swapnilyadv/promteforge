@@ -11,7 +11,7 @@ Each session follows the plan doc: branch `s<n>-<goal>`, build only that row, ru
 | 6 (part) | CLI | Done | `pf convert / analyze / models / targets`; live token streaming |
 | 5 | Validators + eval harness | Done | 102-case tuned set + 30-case held-out set, deterministic scorer, blind A/B LLM judge (`pnpm eval -j`), baseline in `evals/results.md`, CI regression test. Intent accuracy 84% → 100% on tuned; held-out first run 77% (see results) |
 | 6 | Tuning | Paused (target open) | Local blind judge (qwen2.5:7b rewrites, llama3.1:8b judges, both A/B orders). Fixed: length (6/11 → 0/11 over budget), dropped details, false structure alarms, model confirms intent when rules are unsure (unseen batch 63% → 83%). Last full run, 102 cases: validators 90%, details kept 96%, judge wins 61% + 40 ties (80% counting ties as half), 0 losses. **85% target not met: the 8B judge flips with A/B order in ~40% of pairs.** Held-out first run was invalid (8 of 30 cases hit Ollama stalls). Still owed: a stronger judge or a checklist score, a clean held-out rerun, tag `v0.6` |
-| 7 | Browser extension scaffold | In progress | WXT, background worker calls core, Forge button in the Claude / ChatGPT / Gemini chat box (branch `s7-extension`) |
+| 7 | Browser extension scaffold | In progress | WXT, background worker calls core, Forge button in the Claude / ChatGPT / Gemini chat box (branch `s7-extension`). Built: WXT + Vite 7, background worker, content script with Forge button and Undo, popup, Ollama Origin workaround, 7 unit tests. **Not yet exercised in a real Chrome on the live sites** |
 
 ## Decisions taken while building
 

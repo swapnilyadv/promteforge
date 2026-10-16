@@ -48,6 +48,7 @@ packages/
   core/        The prompt engine (below).
 apps/
   cli/         `pf` command for trying and testing the engine.
+  extension/   Chrome extension: a Forge button in the Claude / ChatGPT / Gemini chat box. See apps/extension/README.md.
 evals/         Test cases, scorer and blind LLM judge. See evals/README.md.
 ```
 
