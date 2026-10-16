@@ -1,0 +1,19 @@
+{
+  "name": "@promptforge/website",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "PromptForge landing page. Static files; try.js is built from src/try.ts.",
+  "scripts": {
+    "build": "esbuild src/try.ts --bundle --format=iife --minify --target=es2020 --outfile=try.js",
+    "serve": "python3 -m http.server 8787",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@promptforge/core": "workspace:*"
+  },
+  "devDependencies": {
+    "esbuild": "^0.21.5",
+    "typescript": "^5.7.2"
+  }
+}

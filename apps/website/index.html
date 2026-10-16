@@ -1,3 +1,9 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="PromptForge turns rough text into a model-aware prompt for Claude, ChatGPT, Gemini and Cursor." />
 <title>PromptForge</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -45,6 +51,24 @@ a { color: inherit; text-decoration: none; }
 h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance; letter-spacing: -0.02em; }
 h2 { font-size: clamp(2rem, 5vw, 3.6rem); line-height: 1.02; font-weight: 700; }
 p { margin: 0; }
+
+/* ---------- try it: write here, get a prompt ---------- */
+.try { position: relative; z-index: 1; padding-block: 120px 60px; }
+.try-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; margin-top: 40px; align-items: stretch; }
+@media (max-width: 880px) { .try-grid { grid-template-columns: minmax(0, 1fr); } }
+.try-pane { background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.try-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.try-pane textarea { flex: 1; min-height: 200px; resize: vertical; width: 100%; background: var(--bg-2); color: var(--fg); border: 1px solid var(--line); border-radius: 14px; padding: 14px; font: 16px/1.5 var(--body); }
+.try-pane textarea:focus { outline: 2px solid var(--heat); outline-offset: 2px; }
+.try-pane select { background: var(--bg-2); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font: inherit; }
+.try-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.try-out { flex: 1; min-height: 200px; white-space: pre-wrap; word-break: break-word; font: 13.5px/1.6 var(--mono); color: #d9d6de; background: var(--bg-2); border: 1px solid var(--line); border-radius: 14px; padding: 14px; overflow: auto; margin: 0; }
+.try-out.empty { color: var(--muted); font-family: var(--body); font-size: 15px; }
+.try-meta { font: 12px/1.4 var(--mono); color: var(--muted); }
+.try-note { margin-top: 18px; color: var(--muted); font-size: 14px; max-width: 70ch; }
+.try-note b { color: var(--fg); font-weight: 600; }
+.try button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+button:disabled { opacity: .5; cursor: not-allowed; }
 
 /* ---------- cursor ---------- */
 .cursor-dot, .cursor-ring { position: fixed; left: 0; top: 0; pointer-events: none; z-index: 100; border-radius: 50%; display: none; }
@@ -264,6 +288,8 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
   .orb { display: none; }
 }
 </style>
+</head>
+<body>
 
 <div class="cursor-ring" aria-hidden="true"></div>
 <div class="cursor-dot" aria-hidden="true"></div>
@@ -294,7 +320,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
         </h1>
         <p class="sub">Type what you want the way you'd text a friend. PromptForge turns it into a <b>model-aware prompt</b> for Claude, ChatGPT, Gemini or Cursor, keeps <b>every detail you gave</b>, and never invents the rest.</p>
         <div class="hero-cta">
-          <a class="btn holo magnetic" href="#start"><span>Forge your first prompt →</span></a>
+          <a class="btn holo magnetic" href="#try"><span>Forge your first prompt →</span></a>
           <span class="hint">move your cursor through the words ↑</span>
         </div>
       </div>
@@ -321,6 +347,35 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
           <div class="meta" id="meta"></div>
         </div>
       </div>
+    </div>
+  </section>
+
+  <section class="try" id="try">
+    <div class="wrap">
+      <span class="eyebrow">Try it now · no account</span>
+      <h2 style="margin-top:14px">Write it the way you'd say it.<br>Get the prompt.</h2>
+      <div class="try-grid">
+        <div class="try-pane">
+          <div class="try-head">
+            <span class="eyebrow">Your message</span>
+            <select id="try-target" aria-label="Target AI"></select>
+          </div>
+          <textarea id="try-input" placeholder="e.g. write an email to my landlord about the broken heater, firm but polite" aria-label="Your rough message"></textarea>
+          <div class="try-actions">
+            <button class="btn holo magnetic" id="try-go" type="button"><span>Convert to prompt →</span></button>
+            <span class="hint">or press ⌘ Enter</span>
+          </div>
+        </div>
+        <div class="try-pane">
+          <div class="try-head">
+            <span class="eyebrow">The prompt</span>
+            <button class="btn ghost" id="try-copy" type="button" disabled>Copy</button>
+          </div>
+          <pre class="try-out empty" id="try-out" aria-live="polite">Your engineered prompt appears here.</pre>
+          <div class="try-meta" id="try-meta"></div>
+        </div>
+      </div>
+      <p class="try-note"><b>This runs in your browser.</b> The rules-based engine builds the prompt on this device. Nothing you type is sent anywhere. For a rewrite by a language model, install the <a href="#start" style="text-decoration:underline">browser extension or the command line</a>, which use a model on your own computer.</p>
     </div>
   </section>
 
@@ -858,3 +913,6 @@ A subject line, then an email under 150 words.
   });
 })();
 </script>
+<script src="./try.js"></script>
+</body>
+</html>
