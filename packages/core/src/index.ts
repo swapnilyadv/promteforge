@@ -8,5 +8,5 @@ export { PROFILES, getProfile, type ModelProfile, type Structure } from './profi
 export { TEMPLATES, getTemplate, type IntentTemplate } from './templates.js';
 export { buildMetaPrompt, buildRepairMessages, META_PROMPT_VERSION } from './meta-prompt.js';
 export { renderOffline } from './render-offline.js';
-export { validatePrompt, postprocess, keywordRecall, keywords } from './validate.js';
+export { validatePrompt, postprocess, keywordRecall, keywords, missingKeywords } from './validate.js';
 export { wordBudget, STYLE_BUDGET, countWords } from './budget.js';

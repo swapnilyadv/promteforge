@@ -99,6 +99,7 @@ export interface ValidationIssue {
     | 'empty'
     | 'preamble'
     | 'meaning-drift'
+    | 'dropped-details'
     | 'missing-structure'
     | 'too-long'
     | 'template-leftover'

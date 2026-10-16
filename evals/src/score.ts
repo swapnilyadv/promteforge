@@ -30,8 +30,10 @@ const PREAMBLE = /^(here('s| is| are)|sure[,!.]|certainly|of course|below is|oka
 
 /** Deterministic checks — no model needed. */
 export function scoreCase(c: EvalCase, r: ConvertResult): CaseScore {
-  const out = r.prompt.toLowerCase();
-  const missingKeep = c.keep.filter((k) => !out.includes(k.toLowerCase()));
+  // "3-day" keeps "3 day", "mid-range" keeps "mid range".
+  const norm = (s: string) => s.toLowerCase().replace(/-/g, ' ');
+  const out = norm(r.prompt);
+  const missingKeep = c.keep.filter((k) => !out.includes(norm(k)));
   const keepRecall = c.keep.length ? (c.keep.length - missingKeep.length) / c.keep.length : 1;
   const intentOk = r.intent === c.intent;
   const inWords = c.text.split(/\s+/).length;

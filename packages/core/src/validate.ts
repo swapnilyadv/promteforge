@@ -8,7 +8,8 @@ const STOPWORDS = new Set(
   more most other ought ours ourselves over same should some such than that their theirs them
   themselves then there these they this those through under until very want what when where which
   while whom with would your yours yourself yourselves will shall make please thanks thank need like
-  really something anything everything kind sort give some only also good nice well want wants`
+  really something anything everything kind sort give some only also good nice well want wants
+  generate create draw write build image picture dont don't doesnt doesn't cant can't wont won't`
     .split(/\s+/)
     .filter(Boolean),
 );
@@ -18,15 +19,21 @@ export function keywords(text: string, inputs: string[] = []): string[] {
   let t = text.replace(/```[\s\S]*?```/g, ' ');
   for (const i of inputs) t = t.split(i).join(' ');
   const words = t.toLowerCase().match(/[\p{L}\p{N}][\p{L}\p{N}'.+#-]*/gu) ?? [];
-  return [...new Set(words.map((w) => w.replace(/[.'-]+$/, '')).filter((w) => w.length >= 4 && !STOPWORDS.has(w)))];
+  // Numbers are details too ("3 day", "10mb"), however short.
+  const keep = (w: string) => (/\d/.test(w) || w.length >= 4) && !STOPWORDS.has(w);
+  return [...new Set(words.map((w) => w.replace(/[.'-]+$/, '')).filter(keep))];
+}
+
+/** The user's key words that don't appear in the output. */
+export function missingKeywords(original: string, output: string, inputs: string[] = []): string[] {
+  const out = output.toLowerCase();
+  return keywords(original, inputs).filter((k) => !(out.includes(k) || (k.length > 6 && out.includes(k.slice(0, 6)))));
 }
 
 export function keywordRecall(original: string, output: string, inputs: string[] = []): number {
   const kws = keywords(original, inputs);
   if (kws.length === 0) return 1;
-  const out = output.toLowerCase();
-  const hit = kws.filter((k) => out.includes(k) || (k.length > 6 && out.includes(k.slice(0, 6)))).length;
-  return Number((hit / kws.length).toFixed(2));
+  return Number(((kws.length - missingKeywords(original, output, inputs).length) / kws.length).toFixed(2));
 }
 
 const PREAMBLE = /^(here('s| is| are)|sure[,!.]|certainly|of course|below is|okay[,!.]|ok[,!.]|absolutely|great[,!.]|i('ve| have) (rewritten|created|improved))/i;
@@ -97,6 +104,12 @@ export function validatePrompt(v: ValidateInput): ValidationReport {
     issues.push({
       code: 'meaning-drift',
       message: `It dropped too many of the user's own details (kept ${Math.round(recall * 100)}% of key words). Keep every goal, name and constraint the user gave.`,
+    });
+  } else if (recall < 1) {
+    const missing = missingKeywords(v.original, prompt, v.slots.inputs);
+    issues.push({
+      code: 'dropped-details',
+      message: `It left out details the user gave: ${missing.map((w) => `"${w}"`).join(', ')}. Put each one back, in the user's words.`,
     });
   }
   for (const input of v.slots.inputs) {

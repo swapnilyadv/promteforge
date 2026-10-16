@@ -120,6 +120,26 @@ describe('convert — with a model', () => {
     expect(r.validation.ok).toBe(true);
   });
 
+  it('repairs a draft that drops a detail, naming exactly what to put back', async () => {
+    const text = 'plan a 3 day trip to jaipur for a couple on a mid range budget';
+    const full = '## Goal\nPlan a 3 day trip to Jaipur for a couple on a mid range budget.\n## Output format\nA day-by-day plan.';
+    const short = '## Goal\nPlan a trip to Jaipur for a couple.\n## Output format\nA day-by-day plan.';
+    let calls = 0;
+    let repairAsk = '';
+    const provider = createMock({
+      reply: (req) => {
+        if (++calls === 2) repairAsk = req.messages.at(-1)!.content;
+        return calls === 1 ? short : full;
+      },
+    });
+    const r = await convert({ text, target: 'chatgpt', provider });
+    expect(repairAsk).toContain('"3"');
+    expect(repairAsk).toContain('"range"');
+    expect(r.mode).toBe('llm');
+    expect(r.prompt).toContain('mid range');
+    expect(r.validation.issues.map((i) => i.code)).not.toContain('dropped-details');
+  });
+
   it('falls back to offline when the model drops the user meaning', async () => {
     const provider = createMock({ reply: '## Goal\nWrite a poem about the sea.\n## Output format\nA poem.' });
     const r = await convert({ text: BAKERY, target: 'chatgpt', provider });
