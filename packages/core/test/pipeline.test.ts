@@ -152,6 +152,17 @@ describe('postprocess + validate', () => {
     expect(r.ok).toBe(false);
   });
 
+  it('accepts the section styles models actually write', () => {
+    const check = (prompt: string, structure: 'markdown' | 'task-first') =>
+      validatePrompt({ prompt, original: prompt, slots: extractSlots(prompt), structure, budget: 200 }).issues.map((i) => i.code);
+    // Bold label with the colon inside, text on the same line (seen from qwen2.5 for Gemini)
+    expect(check('Research intermittent fasting.\n\n**Context:** Recent studies.\n**Format:** Short summary.', 'task-first')).not.toContain('missing-structure');
+    // "Label: value" lines
+    expect(check('Role: Editor\nTask: Rewrite the paragraph.\nOutput format: The text only.', 'markdown')).not.toContain('missing-structure');
+    // Plain prose is still not structure
+    expect(check('Please rewrite the paragraph so it is clearer and shorter.', 'markdown')).toContain('missing-structure');
+  });
+
   it('budget stays proportionate to input size', () => {
     const tiny = extractSlots('what is rust');
     expect(wordBudget('detailed', 'what is rust', tiny)).toBeLessThanOrEqual(120);

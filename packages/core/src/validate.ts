@@ -26,7 +26,8 @@ export function keywords(text: string, inputs: string[] = []): string[] {
 
 /** The user's key words that don't appear in the output. */
 export function missingKeywords(original: string, output: string, inputs: string[] = []): string[] {
-  const out = output.toLowerCase();
+  // "₹70,000" keeps "70000".
+  const out = output.toLowerCase().replace(/(\d),(?=\d)/g, '$1');
   return keywords(original, inputs).filter((k) => !(out.includes(k) || (k.length > 6 && out.includes(k.slice(0, 6)))));
 }
 
@@ -57,6 +58,12 @@ export function postprocess(raw: string): string {
   return s;
 }
 
+/**
+ * A line that opens a section: "## Goal", "**Goal**", "**Goal:** text", "**Goal**: text" or "Goal: text".
+ * Models write all of these; each is a clear, labelled section.
+ */
+const SECTION_LABEL = /^(#{1,4} \S.*|\*\*[^*\n]{2,40}(:\*\*|\*\*:?)(\s.*)?|[A-Z][A-Za-z &/]{2,30}:(\s.*)?)$/gm;
+
 function hasStructure(prompt: string, structure: Structure): boolean {
   switch (structure) {
     case 'xml': {
@@ -64,14 +71,10 @@ function hasStructure(prompt: string, structure: Structure): boolean {
       return tags.length >= 2;
     }
     case 'markdown':
-    case 'code': {
-      const headers = prompt.match(/^(#{1,4} .+|\*\*[^*\n]+\*\*:?\s*$|[A-Z][A-Za-z &/]{2,30}:\s*$)/gm) ?? [];
-      return headers.length >= 2;
-    }
-    case 'task-first': {
-      const labels = prompt.match(/^(#{1,4} .+|\*\*?[^*\n]{2,30}\*\*?:|[A-Z][A-Za-z &/]{2,30}:)/gm) ?? [];
-      return labels.length >= 1;
-    }
+    case 'code':
+      return (prompt.match(SECTION_LABEL) ?? []).length >= 2;
+    case 'task-first':
+      return (prompt.match(SECTION_LABEL) ?? []).length >= 1;
     case 'image':
       return true;
   }
