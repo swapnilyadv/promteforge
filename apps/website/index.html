@@ -1,0 +1,918 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="PromptForge turns rough text into a model-aware prompt for Claude, ChatGPT, Gemini and Cursor." />
+<title>PromptForge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@300..900&family=Instrument+Sans:wght@400..700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a dark forge in graphite and brushed chrome. One warm "heat" accent marks what the engine touches; everything else is monochrome. */
+:root {
+  --bg: #0c0c0e;
+  --bg-2: #141417;
+  --panel: #18181c;
+  --fg: #efedf2;
+  --muted: #8f8c96;
+  --line: rgba(239, 237, 242, 0.09);
+  --heat: #ff9a4d;
+  --heat-2: #ff9a4d;
+  --cool: #b8b4c0;
+  --mint: #dcd9e2;
+  --holo: conic-gradient(from var(--spin, 0deg), #f4f2f7, #6d6a74, #e2dfe8, #3f3d45, #f4f2f7);
+  --display: "Unbounded", "Arial Black", system-ui, sans-serif;
+  --body: "Instrument Sans", "Helvetica Neue", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --gutter: clamp(16px, 4vw, 48px);
+  color-scheme: dark;
+}
+@property --spin { syntax: "<angle>"; inherits: true; initial-value: 0deg; }
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--body);
+  font-size: 17px;
+  line-height: 1.55;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+body.has-cursor, body.has-cursor a, body.has-cursor button { cursor: none; }
+a { color: inherit; text-decoration: none; }
+::selection { background: var(--heat); color: var(--bg); }
+:focus-visible { outline: 2px solid var(--heat); outline-offset: 3px; border-radius: 6px; }
+
+.wrap { width: 100%; max-width: 1240px; margin-inline: auto; padding-inline: var(--gutter); }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance; letter-spacing: -0.02em; }
+h2 { font-size: clamp(2rem, 5vw, 3.6rem); line-height: 1.02; font-weight: 700; }
+p { margin: 0; }
+
+/* ---------- try it: write here, get a prompt ---------- */
+.try { position: relative; z-index: 1; padding-block: 120px 60px; }
+.try-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; margin-top: 40px; align-items: stretch; }
+@media (max-width: 880px) { .try-grid { grid-template-columns: minmax(0, 1fr); } }
+.try-pane { background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.try-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.try-pane textarea { flex: 1; min-height: 200px; resize: vertical; width: 100%; background: var(--bg-2); color: var(--fg); border: 1px solid var(--line); border-radius: 14px; padding: 14px; font: 16px/1.5 var(--body); }
+.try-pane textarea:focus { outline: 2px solid var(--heat); outline-offset: 2px; }
+.try-pane select { background: var(--bg-2); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font: inherit; }
+.try-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.try-out { flex: 1; min-height: 200px; white-space: pre-wrap; word-break: break-word; font: 13.5px/1.6 var(--mono); color: #d9d6de; background: var(--bg-2); border: 1px solid var(--line); border-radius: 14px; padding: 14px; overflow: auto; margin: 0; }
+.try-out.empty { color: var(--muted); font-family: var(--body); font-size: 15px; }
+.try-meta { font: 12px/1.4 var(--mono); color: var(--muted); }
+.try-note { margin-top: 18px; color: var(--muted); font-size: 14px; max-width: 70ch; }
+.try-note b { color: var(--fg); font-weight: 600; }
+.try button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ---------- cursor ---------- */
+.cursor-dot, .cursor-ring { position: fixed; left: 0; top: 0; pointer-events: none; z-index: 100; border-radius: 50%; display: none; }
+body.has-cursor .cursor-dot, body.has-cursor .cursor-ring { display: block; }
+.cursor-dot { width: 6px; height: 6px; margin: -3px 0 0 -3px; background: var(--fg); }
+.cursor-ring {
+  width: 38px; height: 38px; margin: -19px 0 0 -19px;
+  border: 1px solid rgba(238, 234, 244, 0.55);
+  transition: width .25s, height .25s, margin .25s, background .25s, border-color .25s;
+  mix-blend-mode: difference;
+}
+.cursor-ring.big { width: 86px; height: 86px; margin: -43px 0 0 -43px; background: var(--fg); border-color: transparent; }
+
+/* ---------- orb that trails the cursor ---------- */
+.orb {
+  position: fixed; left: 0; top: 0; width: 520px; height: 520px; margin: -260px 0 0 -260px;
+  border-radius: 50%; pointer-events: none; z-index: 0;
+  background: radial-gradient(circle, rgba(239, 237, 242, .9), rgba(255, 154, 77, .35) 45%, transparent 70%); filter: blur(80px); opacity: .1;
+  animation: spin 14s linear infinite;
+}
+@keyframes spin { to { --spin: 360deg; } }
+
+/* ---------- nav ---------- */
+.nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 14px); padding-bottom: 14px;
+  backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
+  background: linear-gradient(to bottom, rgba(13, 10, 18, .78), rgba(13, 10, 18, .35));
+  border-bottom: 1px solid var(--line);
+}
+.nav .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.logo { font-family: var(--display); font-weight: 800; font-size: 18px; letter-spacing: -0.03em; display: flex; align-items: center; gap: 10px; }
+.logo i { width: 20px; height: 20px; border-radius: 6px; background: var(--holo); animation: spin 6s linear infinite; display: inline-block; }
+.links { display: flex; gap: 28px; font-size: 15px; color: var(--muted); }
+.links a:hover { color: var(--fg); }
+@media (max-width: 760px) { .links { display: none; } }
+
+.btn {
+  position: relative; display: inline-flex; align-items: center; gap: 10px;
+  font: 600 15px/1 var(--body); color: var(--bg); background: var(--fg);
+  padding: 14px 22px; border-radius: 999px; border: 0; white-space: nowrap;
+  transition: transform .2s ease-out;
+}
+.btn.holo { color: var(--fg); background: var(--bg-2); isolation: isolate; }
+.btn.holo::before { content: ""; position: absolute; inset: -1.5px; border-radius: inherit; background: var(--holo); z-index: -2; animation: spin 4s linear infinite; }
+.btn.holo::after { content: ""; position: absolute; inset: 1px; border-radius: inherit; background: var(--bg-2); z-index: -1; }
+.btn span { display: inline-block; transition: transform .2s ease-out; }
+
+/* ---------- hero ---------- */
+.hero { position: relative; padding-top: calc(env(safe-area-inset-top, 0px) + 140px); padding-bottom: 72px; overflow: hidden; }
+#field { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; }
+.hero .wrap { position: relative; z-index: 1; display: grid; gap: 40px; }
+.hero-top { display: grid; gap: 22px; max-width: 980px; }
+.headline { font-size: clamp(2.7rem, 9.4vw, 8.2rem); line-height: .92; font-weight: 300; }
+.headline .w { display: inline-block; white-space: nowrap; }
+.headline .ch {
+  display: inline-block; --p: 0;
+  font-variation-settings: "wght" calc(300 + var(--p) * 600);
+  transform: translateY(calc(var(--p) * -0.09em)) scale(calc(1 + var(--p) * .06));
+  color: color-mix(in oklab, var(--fg), var(--heat) calc(var(--p) * 100%));
+  transition: color .12s;
+}
+.headline .line2 .ch { font-variation-settings: "wght" calc(800 - var(--p) * 450); }
+.headline .ch.wave { animation: wave .9s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i) * 28ms); }
+@keyframes wave { 0% { transform: translateY(0); } 35% { transform: translateY(-0.12em); color: var(--heat); } 100% { transform: translateY(0); } }
+.sub { font-size: clamp(1.05rem, 2vw, 1.3rem); color: var(--muted); max-width: 52ch; }
+.sub b { color: var(--fg); font-weight: 600; }
+.hero-cta { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+.hint { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+/* ---------- demo ---------- */
+.demo {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.25fr); gap: 18px; align-items: stretch;
+}
+@media (max-width: 880px) { .demo { grid-template-columns: minmax(0, 1fr); } .arrow { transform: rotate(90deg); justify-self: center; } }
+.pane { background: rgba(27, 22, 36, .72); border: 1px solid var(--line); border-radius: 20px; padding: 20px; min-width: 0; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.pane-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.rough { font-family: var(--body); font-size: clamp(1.1rem, 2vw, 1.35rem); line-height: 1.4; min-height: 5.6em; }
+.caret { display: inline-block; width: 2px; height: 1.1em; background: var(--heat); vertical-align: -0.15em; margin-left: 2px; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.arrow { align-self: center; width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--line); background: var(--bg-2); position: relative; }
+.arrow svg { width: 22px; height: 22px; }
+.arrow.hot::before { content: ""; position: absolute; inset: -6px; border-radius: 50%; background: var(--holo); filter: blur(10px); opacity: .7; z-index: -1; animation: spin 1.2s linear infinite; }
+.forged { position: relative; overflow: hidden; }
+.forged::before { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; background: var(--holo); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; opacity: .55; pointer-events: none; animation: spin 8s linear infinite; }
+.shimmer { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(100deg, transparent 30%, rgba(239, 237, 242, .1) 48%, rgba(255, 154, 77, .14) 52%, transparent 70%); transform: translateX(-100%); }
+.shimmer.go { animation: sweep .9s ease-in-out; }
+@keyframes sweep { to { transform: translateX(100%); } }
+pre.out { margin: 0; font: 13.5px/1.6 var(--mono); white-space: pre-wrap; word-break: break-word; min-height: 15em; color: #d9d3e4; }
+pre.out .ln { display: block; animation: rise .35s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes rise { from { transform: translateY(6px); opacity: .25; filter: blur(3px); } }
+.tag { color: var(--cool); }
+.hd { color: var(--heat); font-weight: 600; }
+.ph { color: var(--fg); border-bottom: 1px dashed var(--muted); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { font: 600 12px/1 var(--mono); padding: 8px 11px; border-radius: 999px; background: transparent; border: 1px solid var(--line); color: var(--muted); }
+.chip[aria-pressed="true"] { color: var(--bg); background: var(--fg); border-color: var(--fg); }
+.meta { font-family: var(--mono); font-size: 12px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; margin-top: 14px; }
+.meta b { color: var(--fg); font-weight: 600; }
+
+/* ---------- marquee ---------- */
+.marquee { border-block: 1px solid var(--line); padding-block: 22px; overflow: hidden; background: var(--bg-2); position: relative; z-index: 1; }
+.track { display: flex; gap: 48px; width: max-content; will-change: transform; }
+.track span { font-family: var(--display); font-size: clamp(1.4rem, 3.4vw, 2.4rem); font-weight: 300; color: var(--muted); white-space: nowrap; }
+.track span em { font-style: normal; color: var(--fg); font-weight: 700; }
+.track span::after { content: "✶"; margin-left: 48px; color: var(--heat); }
+
+/* ---------- in your browser ---------- */
+.inapp { position: relative; z-index: 1; padding-block: 120px 40px; }
+.inapp-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: clamp(28px, 5vw, 64px); align-items: center; margin-top: 40px; }
+@media (max-width: 900px) { .inapp-grid { grid-template-columns: minmax(0, 1fr); } }
+.inapp-head p { color: var(--muted); max-width: 52ch; margin-top: 16px; }
+.soon { display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; font: 600 12px/1 var(--mono); color: var(--fg); border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px; }
+.soon::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--heat); animation: blink 1.4s steps(1) infinite; }
+.browser { border-radius: 18px; border: 1px solid var(--line); background: var(--bg-2); overflow: hidden; box-shadow: 0 40px 120px -40px rgba(0, 0, 0, .8); min-width: 0; }
+.bar { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.dots { display: flex; gap: 6px; }
+.dots i { width: 10px; height: 10px; border-radius: 50%; background: #2c2b31; display: block; }
+.url { flex: 1; min-width: 0; font: 12px var(--mono); color: var(--muted); background: var(--panel); border-radius: 8px; padding: 7px 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ext { width: 26px; height: 26px; border-radius: 7px; background: var(--fg); display: grid; place-items: center; flex: none; }
+.ext b { width: 10px; height: 10px; border-radius: 3px; background: var(--bg); display: block; }
+.chat { padding: 26px clamp(16px, 3vw, 30px) 22px; display: grid; gap: 16px; min-height: 360px; align-content: end; }
+.chat-hello { font-family: var(--display); font-weight: 300; font-size: clamp(1.2rem, 2.6vw, 1.7rem); color: var(--muted); text-align: center; margin-bottom: 8px; }
+.composer { position: relative; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); padding: 14px 16px 52px; transition: border-color .3s, box-shadow .3s; }
+.composer.glow { border-color: rgba(255, 154, 77, .6); box-shadow: 0 0 0 4px rgba(255, 154, 77, .08); }
+.composer .txt { font-size: 15px; line-height: 1.5; min-height: 3em; white-space: pre-wrap; word-break: break-word; }
+.composer .txt.code { font: 12.5px/1.55 var(--mono); color: #d9d6de; max-height: 210px; overflow: hidden; }
+.composer .txt .tag { color: var(--cool); }
+.composer .txt .ph { color: var(--fg); }
+.forge-pill { position: absolute; right: 12px; bottom: 12px; display: inline-flex; align-items: center; gap: 8px; font: 600 12px/1 var(--mono); padding: 9px 12px; border-radius: 999px; background: var(--fg); color: var(--bg); transform: translateY(6px) scale(.96); opacity: 0; transition: transform .3s cubic-bezier(.2, .8, .2, 1), opacity .3s; }
+.forge-pill.show { transform: none; opacity: 1; }
+.forge-pill.press { transform: scale(.92); }
+.forge-pill kbd { font: inherit; opacity: .55; }
+.send { position: absolute; left: 14px; bottom: 12px; font: 12px var(--mono); color: var(--muted); }
+.toast { font: 12px/1.4 var(--mono); color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; min-height: 1.4em; transition: opacity .3s; }
+.toast b { color: var(--fg); font-weight: 600; }
+.howto { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.howto li { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 14px; padding: 12px 0; opacity: .45; transition: opacity .35s; }
+.howto li.on { opacity: 1; }
+.howto .n { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font: 600 12px var(--mono); border: 1px solid var(--line); background: var(--bg-2); transition: background .3s, color .3s; }
+.howto li.on .n { background: var(--fg); color: var(--bg); }
+.howto h3 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.howto p { color: var(--muted); font-size: 15px; margin-top: 2px; }
+.howto kbd { font: 600 12px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 2px 6px; color: var(--fg); }
+
+/* ---------- pipeline (scroll) ---------- */
+.pipe { position: relative; height: 360vh; z-index: 1; }
+.pipe-stage { position: sticky; top: 0; min-height: 100vh; min-height: 100svh; display: grid; align-items: center; padding-block: 96px 48px; }
+.pipe-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: clamp(28px, 5vw, 72px); align-items: start; }
+@media (max-width: 880px) { .pipe { height: auto; } .pipe-stage { position: static; min-height: 0; } .pipe-grid { grid-template-columns: minmax(0, 1fr); } }
+.pipe h2 { margin-block: 14px 26px; }
+.sentence { font-family: var(--display); font-weight: 400; font-size: clamp(1.3rem, 2.6vw, 2.1rem); line-height: 1.35; }
+.sentence .tok { border-radius: 8px; padding: 0 .1em; transition: background .4s, color .4s, box-shadow .4s; }
+.sentence .tok.on { color: var(--bg); background: var(--fg); }
+.sentence .tok.on[data-kind="goal"] { background: var(--fg); }
+.sentence .tok.on[data-kind="quality"] { background: transparent; color: var(--fg); box-shadow: inset 0 0 0 1.5px var(--fg); }
+.sentence .tok.on[data-kind="constraint"] { background: var(--heat); }
+.sentence .tok.on[data-kind="noise"] { background: transparent; color: var(--muted); text-decoration: line-through; }
+.readout { margin-top: 26px; font-family: var(--mono); font-size: 13px; color: var(--muted); display: grid; gap: 6px; }
+.readout b { color: var(--fg); font-weight: 600; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; position: relative; }
+.steps::before { content: ""; position: absolute; left: 15px; top: 18px; bottom: 18px; width: 2px; background: var(--line); }
+.steps::after { content: ""; position: absolute; left: 15px; top: 18px; width: 2px; height: calc((100% - 36px) * var(--prog, 0)); background: linear-gradient(var(--fg), var(--heat)); }
+.step { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 16px; padding: 12px 0; position: relative; opacity: .42; transition: opacity .35s; }
+.step.on { opacity: 1; }
+.step .n { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font: 600 12px var(--mono); background: var(--bg-2); border: 1px solid var(--line); position: relative; z-index: 1; transition: background .35s, color .35s; }
+.step.on .n { background: var(--fg); color: var(--bg); }
+.step h3 { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+.step p { color: var(--muted); font-size: 15px; margin-top: 2px; max-width: 46ch; }
+
+/* ---------- targets ---------- */
+.targets { position: relative; z-index: 1; padding-block: 120px 60px; }
+.targets-head { display: flex; justify-content: space-between; align-items: end; gap: 24px; flex-wrap: wrap; margin-bottom: 40px; }
+.targets-head p { color: var(--muted); max-width: 40ch; }
+.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; perspective: 1100px; }
+@media (max-width: 980px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px) { .cards { grid-template-columns: minmax(0, 1fr); } }
+.card {
+  --rx: 0deg; --ry: 0deg; --mx: 50%; --my: 50%;
+  position: relative; border-radius: 22px; padding: 24px; min-width: 0;
+  background: radial-gradient(420px circle at var(--mx) var(--my), rgba(239, 237, 242, .08), transparent 45%), var(--panel);
+  border: 1px solid var(--line);
+  transform: rotateX(var(--rx)) rotateY(var(--ry));
+  transform-style: preserve-3d; transition: transform .5s cubic-bezier(.2, .8, .2, 1);
+  display: grid; gap: 14px; align-content: start;
+}
+.card.live { transition: transform .08s linear; }
+.card h3 { font-size: 22px; font-weight: 700; transform: translateZ(30px); }
+.card .fmt { font: 600 11px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--heat); transform: translateZ(20px); }
+.card p { color: var(--muted); font-size: 15px; transform: translateZ(14px); }
+.card pre { margin: 0; font: 12.5px/1.6 var(--mono); color: #d9d3e4; background: rgba(13, 10, 18, .6); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; overflow-x: auto; transform: translateZ(40px); white-space: pre; }
+
+/* ---------- proof ---------- */
+.proof { position: relative; z-index: 1; padding-block: 60px 120px; }
+.proof-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line); }
+@media (max-width: 880px) { .proof-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stat { padding: 28px 22px 8px 0; display: grid; gap: 8px; align-content: start; }
+.stat .num { font-family: var(--display); font-size: clamp(2.4rem, 5vw, 4rem); font-weight: 800; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+.stat .num small { font-size: .45em; font-weight: 400; color: var(--muted); letter-spacing: 0; }
+.stat p { color: var(--muted); font-size: 14px; max-width: 26ch; }
+.footnote { margin-top: 26px; font-family: var(--mono); font-size: 12px; color: var(--muted); max-width: 80ch; }
+
+/* ---------- final ---------- */
+.final { position: relative; z-index: 1; padding-block: 120px; text-align: left; border-top: 1px solid var(--line); overflow: hidden; }
+.final h2 { font-size: clamp(2.6rem, 8vw, 7rem); font-weight: 800; line-height: .95; }
+.final h2 .holo-text { background: var(--holo); -webkit-background-clip: text; background-clip: text; color: transparent; animation: spin 6s linear infinite; }
+.final-row { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; margin-top: 40px; }
+.cmd { display: flex; align-items: center; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 10px 10px 10px 18px; min-width: 0; max-width: 100%; }
+.cmd code { font: 14px var(--mono); color: #d9d3e4; overflow-x: auto; white-space: nowrap; min-width: 0; }
+.cmd code b { color: var(--heat); font-weight: 600; }
+.copy { font: 600 12px/1 var(--mono); padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-2); color: var(--fg); }
+footer { position: relative; z-index: 1; border-top: 1px solid var(--line); padding-block: 28px calc(28px + env(safe-area-inset-bottom, 0px)); color: var(--muted); font-size: 14px; }
+footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .orb { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="cursor-ring" aria-hidden="true"></div>
+<div class="cursor-dot" aria-hidden="true"></div>
+<div class="orb" aria-hidden="true"></div>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="logo" href="#top" aria-label="PromptForge home"><i></i>PromptForge</a>
+    <nav class="links" aria-label="Sections">
+      <a href="#inclaude" data-scramble>In Claude</a>
+      <a href="#how" data-scramble>How it works</a>
+      <a href="#targets" data-scramble>Targets</a>
+      <a href="#proof" data-scramble>Evals</a>
+    </nav>
+    <a class="btn magnetic" href="#start"><span>Get the CLI</span></a>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <canvas id="field" aria-hidden="true"></canvas>
+    <div class="wrap">
+      <div class="hero-top">
+        <span class="eyebrow">Prompt engineering, on autopilot</span>
+        <h1 class="headline" aria-label="Say it rough. Ship it sharp.">
+          <span class="line1" data-split>Say it rough.</span><br>
+          <span class="line2" data-split>Ship it sharp.</span>
+        </h1>
+        <p class="sub">Type what you want the way you'd text a friend. PromptForge turns it into a <b>model-aware prompt</b> for Claude, ChatGPT, Gemini or Cursor, keeps <b>every detail you gave</b>, and never invents the rest.</p>
+        <div class="hero-cta">
+          <a class="btn holo magnetic" href="#try"><span>Forge your first prompt →</span></a>
+          <span class="hint">move your cursor through the words ↑</span>
+        </div>
+      </div>
+
+      <div class="demo" id="demo">
+        <div class="pane">
+          <div class="pane-head"><span class="eyebrow">What you type</span><span class="eyebrow" id="lang">en</span></div>
+          <p class="rough" id="rough">make me a landing page for my bakery, should look nice and load fast. dont use bootstrap</p>
+        </div>
+        <div class="arrow" id="arrow" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </div>
+        <div class="pane forged">
+          <div class="shimmer" id="shimmer"></div>
+          <div class="pane-head">
+            <span class="eyebrow">What the model gets</span>
+            <div class="chips" role="group" aria-label="Target AI">
+              <button class="chip" data-ex="0" aria-pressed="true">Claude</button>
+              <button class="chip" data-ex="1" aria-pressed="false">ChatGPT</button>
+              <button class="chip" data-ex="2" aria-pressed="false">Cursor</button>
+            </div>
+          </div>
+          <pre class="out" id="out"></pre>
+          <div class="meta" id="meta"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="try" id="try">
+    <div class="wrap">
+      <span class="eyebrow">Try it now · no account</span>
+      <h2 style="margin-top:14px">Write it the way you'd say it.<br>Get the prompt.</h2>
+      <div class="try-grid">
+        <div class="try-pane">
+          <div class="try-head">
+            <span class="eyebrow">Your message</span>
+            <select id="try-target" aria-label="Target AI"></select>
+          </div>
+          <textarea id="try-input" placeholder="e.g. write an email to my landlord about the broken heater, firm but polite" aria-label="Your rough message"></textarea>
+          <div class="try-actions">
+            <button class="btn holo magnetic" id="try-go" type="button"><span>Convert to prompt →</span></button>
+            <span class="hint">or press ⌘ Enter</span>
+          </div>
+        </div>
+        <div class="try-pane">
+          <div class="try-head">
+            <span class="eyebrow">The prompt</span>
+            <button class="btn ghost" id="try-copy" type="button" disabled>Copy</button>
+          </div>
+          <pre class="try-out empty" id="try-out" aria-live="polite">Your engineered prompt appears here.</pre>
+          <div class="try-meta" id="try-meta"></div>
+        </div>
+      </div>
+      <p class="try-note"><b>This runs in your browser.</b> The rules-based engine builds the prompt on this device. Nothing you type is sent anywhere. For a rewrite by a language model, install the <a href="#start" style="text-decoration:underline">browser extension or the command line</a>, which use a model on your own computer.</p>
+    </div>
+  </section>
+
+  <div class="marquee" aria-hidden="true">
+    <div class="track" id="track"></div>
+  </div>
+
+  <section class="inapp" id="inclaude">
+    <div class="wrap">
+      <div class="inapp-head">
+        <span class="eyebrow">Right where you type</span>
+        <h2 style="margin-top:14px">Write badly in Claude.<br>Send something great.</h2>
+        <p>The browser extension adds one button to the chat box on Claude, ChatGPT and Gemini. Type the way you normally would, press Forge, and your message is rewritten in place, for the AI on that page, by a model running on your own computer. You read it, then send it.</p>
+        <span class="soon">Browser extension · in development</span>
+      </div>
+      <div class="inapp-grid">
+        <div class="browser" aria-label="Animation: PromptForge rewriting a message in the Claude chat box">
+          <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">claude.ai/new</span><span class="ext" title="PromptForge extension"><b></b></span></div>
+          <div class="chat">
+            <p class="chat-hello">What can I help with?</p>
+            <div class="composer" id="composer">
+              <div class="txt" id="ctext">write an email to my landlord about the broken heater, firm but polite</div>
+              <span class="send">↵ send</span>
+              <span class="forge-pill" id="pill">✶ Forge <kbd>⌥⇧F</kbd></span>
+            </div>
+            <div class="toast" id="toast"></div>
+          </div>
+        </div>
+        <ol class="howto" id="howto">
+          <li class="on"><span class="n">1</span><div><h3>Add the extension</h3><p>Once, from the Chrome Web Store. It talks to Ollama on your Mac, so nothing goes to a server.</p></div></li>
+          <li><span class="n">2</span><div><h3>Type like you text</h3><p>Rough, short, typos, Hinglish. It notices you're on claude.ai and picks Claude's format.</p></div></li>
+          <li><span class="n">3</span><div><h3>Press Forge or <kbd>⌥⇧F</kbd></h3><p>Your message is rewritten in the box. Every detail you gave is checked before it's shown.</p></div></li>
+          <li><span class="n">4</span><div><h3>Read it, then send</h3><p>Edit anything you like, or press Undo to get your original text back.</p></div></li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="pipe" id="how">
+    <div class="pipe-stage">
+      <div class="wrap pipe-grid">
+        <div>
+          <span class="eyebrow">How it forges · scroll</span>
+          <h2>Six passes. Zero guesswork.</h2>
+          <p class="sentence" id="sentence">
+            <span class="tok" data-kind="noise">hey can u</span>
+            <span class="tok" data-kind="goal">make me a landing page</span>
+            <span class="tok" data-kind="goal">for my bakery</span>,
+            <span class="tok" data-kind="quality">should look nice</span> and
+            <span class="tok" data-kind="quality">load fast</span>.
+            <span class="tok" data-kind="constraint">dont use bootstrap</span>
+            <span class="tok" data-kind="noise">pls thx</span>
+          </p>
+          <div class="readout" id="readout">
+            <span>target → <b id="r-target">Claude</b></span>
+            <span>intent → <b id="r-intent">coding</b> · confidence <b id="r-conf">0.92</b></span>
+            <span>status → <b id="r-status">ready</b></span>
+          </div>
+        </div>
+        <ol class="steps" id="steps">
+          <li class="step on"><span class="n">1</span><div><h3>Normalize</h3><p>Strips pasted UI noise, protects code, detects the language, and redacts API keys before anything leaves your machine.</p></div></li>
+          <li class="step"><span class="n">2</span><div><h3>Detect the target</h3><p>Reads the page, app or editor you're in: Claude gets XML tags, ChatGPT gets Markdown, Cursor gets a brief.</p></div></li>
+          <li class="step"><span class="n">3</span><div><h3>Classify the intent</h3><p>Ten task types, from coding and debugging to email and image, including everyday Hinglish.</p></div></li>
+          <li class="step"><span class="n">4</span><div><h3>Extract the details</h3><p>Goal, audience, tone, tech, constraints, and any code or errors you pasted, copied verbatim.</p></div></li>
+          <li class="step"><span class="n">5</span><div><h3>Rewrite</h3><p>A local model like qwen2.5 rewrites to the target's playbook, within a word budget that fits the request.</p></div></li>
+          <li class="step"><span class="n">6</span><div><h3>Check and repair</h3><p>Every detail you gave must survive. If one goes missing, the model gets one repair pass listing exactly what to put back.</p></div></li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="targets" id="targets">
+    <div class="wrap">
+      <div class="targets-head">
+        <div><span class="eyebrow">Eleven targets</span><h2 style="margin-top:14px">Every model has<br>its own dialect.</h2></div>
+        <p>Same request, a different shape for each AI. Hover a card.</p>
+      </div>
+      <div class="cards">
+        <article class="card"><span class="fmt">XML sections</span><h3>Claude</h3><p>Plain opening line, then tagged context, task and output format.</p>
+<pre>&lt;task&gt;Build the page&lt;/task&gt;
+&lt;requirements&gt;
+- No Bootstrap
+&lt;/requirements&gt;</pre></article>
+        <article class="card"><span class="fmt">Markdown</span><h3>ChatGPT</h3><p>A one-line role, short headers, numbered requirements.</p>
+<pre>## Role
+Senior front-end dev
+## Requirements
+1. Loads fast</pre></article>
+        <article class="card"><span class="fmt">Task first</span><h3>Gemini</h3><p>The task in one direct sentence, then short labelled sections.</p>
+<pre>Build a bakery landing page.
+Constraints: no Bootstrap
+Format: full files</pre></article>
+        <article class="card"><span class="fmt">Coding brief</span><h3>Cursor · Copilot</h3><p>Current vs expected behaviour, a deliverable, acceptance criteria.</p>
+<pre>## Deliverable
+Minimal diff
+## Acceptance
+Tests pass</pre></article>
+        <article class="card"><span class="fmt">Sources</span><h3>Perplexity</h3><p>Asks for links and a date range, because it searches the web.</p>
+<pre>Cite sources with links.
+Prefer 2025–2026.</pre></article>
+        <article class="card"><span class="fmt">Visual description</span><h3>Image models</h3><p>Describes the picture instead of instructing: subject, light, palette, ratio.</p>
+<pre>a tiny robot watering plants,
+monsoon balcony, watercolor,
+16:9</pre></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="proof" id="proof">
+    <div class="wrap">
+      <span class="eyebrow">Measured, not vibed</span>
+      <h2 style="margin-block:14px 34px">Numbers from the eval harness.</h2>
+      <div class="proof-grid">
+        <div class="stat"><span class="num" data-count="10">10<small>/11</small></span><p>times a blind judge preferred the forged prompt over the raw request</p></div>
+        <div class="stat"><span class="num" data-count="0">0<small>/11</small></span><p>prompts over the word budget, down from 6 before meta-prompt v2</p></div>
+        <div class="stat"><span class="num" data-count="102">102<small>/102</small></span><p>tuning cases where every must-keep detail survived, offline</p></div>
+        <div class="stat"><span class="num" data-count="0">0<small> keys</small></span><p>secrets sent to a cloud model. Local models run on your machine.</p></div>
+      </div>
+      <p class="footnote">Quick check: qwen2.5:7b rewriting, llama3.1:8b judging, each pair judged in both A/B orders, run locally on an M2. One tie, no losses. The full 102-case baseline is in progress.</p>
+    </div>
+  </section>
+
+  <section class="final" id="start">
+    <div class="wrap">
+      <span class="eyebrow">Free · local · open</span>
+      <h2>Stop writing prompts.<br><span class="holo-text">Start forging them.</span></h2>
+      <div class="final-row">
+        <div class="cmd"><code id="cmd"><b>pnpm pf</b> convert -p ollama -m qwen2.5:7b -t claude "explain kubernetes to a beginner"</code><button class="copy" id="copy" type="button">Copy</button></div>
+        <a class="btn holo magnetic" href="https://github.com/swapnilyadv/promteforge" target="_blank" rel="noopener"><span>Star on GitHub ↗</span></a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap"><span>PromptForge · rough text in, engineered prompts out</span><span>Browser extension coming in session 7</span></div>
+</footer>
+
+<script>
+(() => {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const finePointer = matchMedia('(hover: hover) and (pointer: fine)').matches;
+  const mouse = { x: innerWidth / 2, y: innerHeight * 0.35, active: false };
+  addEventListener('pointermove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY; mouse.active = true; }, { passive: true });
+  document.addEventListener('pointerleave', () => { mouse.active = false; });
+
+  /* ---------- custom cursor + orb ---------- */
+  const dot = document.querySelector('.cursor-dot');
+  const ring = document.querySelector('.cursor-ring');
+  const orb = document.querySelector('.orb');
+  if (finePointer && !reduce) document.body.classList.add('has-cursor');
+  let rx = mouse.x, ry = mouse.y, ox = mouse.x, oy = mouse.y;
+  document.querySelectorAll('a, button, .card').forEach((el) => {
+    el.addEventListener('pointerenter', () => ring.classList.add('big'));
+    el.addEventListener('pointerleave', () => ring.classList.remove('big'));
+  });
+
+  /* ---------- headline split + heat ---------- */
+  const chars = [];
+  document.querySelectorAll('[data-split]').forEach((line) => {
+    const words = line.textContent.split(' ');
+    line.textContent = '';
+    words.forEach((w, wi) => {
+      const ws = document.createElement('span');
+      ws.className = 'w';
+      ws.setAttribute('aria-hidden', 'true');
+      for (const c of w) {
+        const s = document.createElement('span');
+        s.className = 'ch';
+        s.textContent = c;
+        s.style.setProperty('--i', chars.length);
+        ws.appendChild(s);
+        chars.push(s);
+      }
+      line.appendChild(ws);
+      if (wi < words.length - 1) line.appendChild(document.createTextNode(' '));
+    });
+  });
+  if (!reduce) {
+    requestAnimationFrame(() => chars.forEach((c) => c.classList.add('wave')));
+    setTimeout(() => chars.forEach((c) => c.classList.remove('wave')), 2200);
+  }
+
+  /* ---------- word field (canvas) ---------- */
+  const canvas = document.getElementById('field');
+  const ctx = canvas.getContext('2d');
+  const WORDS = ['make it nice', 'pls', 'asap', 'fix this', 'dont use bootstrap', 'idk', 'like apple', 'but better', 'explain simply',
+    'TypeError', 'for my bakery', 'firm but polite', 'banao', 'load fast', '???', 'write an email', 'kuch accha', 'short pls',
+    'with react', 'no jargon', 'my landlord', 'top 5', 'in hindi', 'make it pop', 'urgent', 'v2', 'remove the bug', 'similar to'];
+  let W = 0, H = 0, dpr = 1, parts = [];
+  function sizeCanvas() {
+    const r = canvas.getBoundingClientRect();
+    dpr = Math.min(devicePixelRatio || 1, 2);
+    W = r.width; H = r.height;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const count = Math.round(Math.min(70, Math.max(26, (W * H) / 26000)));
+    parts = Array.from({ length: count }, (_, i) => {
+      const z = Math.random();
+      const x = Math.random() * W, y = Math.random() * H;
+      return { t: WORDS[i % WORDS.length], x, y, hx: x, hy: y, vx: 0, vy: 0, z, size: 11 + z * 13, drift: Math.random() * Math.PI * 2, heat: 0 };
+    });
+  }
+  sizeCanvas();
+  addEventListener('resize', sizeCanvas);
+
+  function drawField(time) {
+    ctx.clearRect(0, 0, W, H);
+    const r = canvas.getBoundingClientRect();
+    const mx = mouse.x - r.left, my = mouse.y - r.top;
+    const inside = mouse.active && my > -50 && my < H + 50;
+    const R = 170;
+    for (const p of parts) {
+      // drift home slowly
+      p.drift += 0.004 + p.z * 0.004;
+      const hx = p.hx + Math.cos(p.drift) * 18, hy = p.hy + Math.sin(p.drift * 1.3) * 12;
+      p.vx += (hx - p.x) * 0.012; p.vy += (hy - p.y) * 0.012;
+      // cursor repulsion
+      let near = 0;
+      if (inside) {
+        const dx = p.x - mx, dy = p.y - my, d = Math.hypot(dx, dy) || 1;
+        if (d < R) { near = 1 - d / R; const f = near * near * (2.2 + p.z * 2.4); p.vx += (dx / d) * f; p.vy += (dy / d) * f; }
+      }
+      p.vx *= 0.86; p.vy *= 0.86;
+      p.x += p.vx; p.y += p.vy;
+      p.heat += (near - p.heat) * 0.12;
+      const a = 0.12 + p.z * 0.25 + p.heat * 0.6;
+      ctx.font = `${400 + Math.round(p.heat * 400)} ${p.size}px "Instrument Sans", system-ui, sans-serif`;
+      ctx.fillStyle = p.heat > 0.05 ? `rgba(255, 154, 77, ${Math.min(1, a)})` : `rgba(239, 237, 242, ${a})`;
+      ctx.fillText(p.t, p.x, p.y);
+      // constellation lines to the cursor
+      if (inside && p.heat > 0.08) {
+        ctx.strokeStyle = `rgba(239, 237, 242, ${p.heat * 0.25})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(p.x + 4, p.y - p.size * 0.35); ctx.stroke();
+      }
+    }
+  }
+
+  /* ---------- magnetic buttons ---------- */
+  const magnets = [...document.querySelectorAll('.magnetic')];
+  function magnet() {
+    for (const b of magnets) {
+      const r = b.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      const dx = mouse.x - cx, dy = mouse.y - cy, d = Math.hypot(dx, dy);
+      const reach = Math.max(r.width, 120);
+      const k = mouse.active && d < reach ? (1 - d / reach) : 0;
+      b.style.transform = `translate(${dx * k * 0.35}px, ${dy * k * 0.35}px)`;
+      b.firstElementChild.style.transform = `translate(${dx * k * 0.15}px, ${dy * k * 0.15}px)`;
+    }
+  }
+
+  /* ---------- headline heat ---------- */
+  function heatLetters() {
+    for (const c of chars) {
+      const r = c.getBoundingClientRect();
+      const d = Math.hypot(mouse.x - (r.left + r.width / 2), mouse.y - (r.top + r.height / 2));
+      const p = mouse.active ? Math.max(0, 1 - d / 190) : 0;
+      const prev = +c.style.getPropertyValue('--p') || 0;
+      const next = prev + (p * p - prev) * 0.25;
+      if (Math.abs(next - prev) > 0.002) c.style.setProperty('--p', next.toFixed(3));
+    }
+  }
+
+  /* ---------- main loop ---------- */
+  function loop(t) {
+    rx += (mouse.x - rx) * 0.18; ry += (mouse.y - ry) * 0.18;
+    ox += (mouse.x - ox) * 0.05; oy += (mouse.y - oy) * 0.05;
+    dot.style.transform = `translate(${mouse.x}px, ${mouse.y}px)`;
+    ring.style.transform = `translate(${rx}px, ${ry}px)`;
+    orb.style.transform = `translate(${ox}px, ${oy}px)`;
+    const heroVisible = canvas.getBoundingClientRect().bottom > 0;
+    if (heroVisible) { drawField(t); if (finePointer) heatLetters(); }
+    if (finePointer) magnet();
+    marqueeStep();
+    requestAnimationFrame(loop);
+  }
+
+  /* ---------- marquee driven by scroll velocity ---------- */
+  const track = document.getElementById('track');
+  const LINES = ['make me a landing page for my <em>bakery</em>', 'write an email to my <em>landlord</em>', 'fix this <em>TypeError</em>',
+    'explain kubernetes to a <em>beginner</em>', 'ek simple <em>expense tracker</em> banao', 'compare 3 budget <em>laptops</em>'];
+  track.innerHTML = [...LINES, ...LINES].map((l) => `<span>${l}</span>`).join('');
+  let mqX = 0, lastY = scrollY, vel = 0, dir = 1;
+  function marqueeStep() {
+    const dy = scrollY - lastY; lastY = scrollY;
+    if (Math.abs(dy) > 0.5) dir = dy > 0 ? 1 : -1;
+    vel += (Math.min(Math.abs(dy), 60) - vel) * 0.1;
+    mqX -= (0.6 + vel * 0.5) * dir;
+    const half = track.scrollWidth / 2;
+    if (mqX <= -half) mqX += half;
+    if (mqX > 0) mqX -= half;
+    track.style.transform = `translateX(${mqX}px)`;
+  }
+
+  if (reduce) { drawField(0); } else { requestAnimationFrame(loop); }
+
+  /* ---------- live demo ---------- */
+  const EXAMPLES = [
+    { rough: 'make me a landing page for my bakery, should look nice and load fast. dont use bootstrap', target: 'Claude',
+      out: `You are a senior front-end engineer. Build a landing page for my bakery.
+
+<context>
+A bakery's website. It should look inviting and load fast.
+</context>
+
+<requirements>
+- Keep assets lean so the page loads fast.
+- Do not use Bootstrap.
+- Tech: [framework and version]
+</requirements>
+
+<output_format>
+Complete files with names, then how to run them.
+</output_format>`, meta: ['intent coding', 'kept 8/8 details', 'XML'] },
+    { rough: 'write an email to my landlord about the broken heater, firm but polite', target: 'ChatGPT',
+      out: `## Role
+You write clear, firm-but-polite emails.
+
+## Goal
+Email my landlord about the broken heater and ask when it will be fixed.
+
+## Details
+- Tone: firm but polite
+- Broken since: [date]
+
+## Output format
+A subject line and an email under 150 words.`, meta: ['intent email', 'kept 6/6 details', 'Markdown'] },
+    { rough: 'fix this TypeError in my react app', target: 'Cursor',
+      out: `## Goal
+Fix the TypeError in my React app.
+
+## Current behaviour
+[paste the exact error and the component]
+
+## Expected
+The component renders without errors.
+
+## Deliverable
+A minimal diff and one line on the root cause.
+
+## Acceptance
+No console errors; existing tests still pass.`, meta: ['intent debugging', 'kept 4/4 details', 'coding brief'] },
+  ];
+  const roughEl = document.getElementById('rough');
+  const outEl = document.getElementById('out');
+  const metaEl = document.getElementById('meta');
+  const shimmer = document.getElementById('shimmer');
+  const arrow = document.getElementById('arrow');
+  const chips = [...document.querySelectorAll('.chip')];
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const paint = (line) => {
+    let h = esc(line);
+    if (/^## /.test(line)) return `<span class="hd">${h}</span>`;
+    h = h.replace(/&lt;\/?[a-z_]+&gt;/g, (m) => `<span class="tag">${m}</span>`);
+    h = h.replace(/\[[^\]]+\]/g, (m) => `<span class="ph">${m}</span>`);
+    return h;
+  };
+  function renderOut(ex, animate) {
+    outEl.innerHTML = ex.out.split('\n').map((l, i) => `<span class="ln" style="animation-delay:${animate ? i * 45 : 0}ms${animate ? '' : ';animation:none'}">${paint(l) || ' '}</span>`).join('');
+    metaEl.innerHTML = ex.meta.map((m, i) => (i === 1 ? `<span>✓ <b>${m}</b></span>` : `<span>${m}</span>`)).join('');
+  }
+  let current = 0, timer = 0, busy = false, userPicked = false;
+  renderOut(EXAMPLES[0], false);
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function show(i) {
+    if (busy) return;
+    busy = true; current = i;
+    chips.forEach((c, k) => c.setAttribute('aria-pressed', String(k === i)));
+    const ex = EXAMPLES[i];
+    if (reduce) { roughEl.textContent = ex.rough; renderOut(ex, false); busy = false; return; }
+    roughEl.innerHTML = '<span class="caret"></span>';
+    outEl.innerHTML = ''; metaEl.innerHTML = '';
+    let typed = '';
+    for (const ch of ex.rough) {
+      typed += ch;
+      roughEl.innerHTML = esc(typed) + '<span class="caret"></span>';
+      await sleep(ch === ' ' ? 18 : 26 + Math.random() * 30);
+    }
+    arrow.classList.add('hot');
+    shimmer.classList.remove('go'); void shimmer.offsetWidth; shimmer.classList.add('go');
+    await sleep(650);
+    arrow.classList.remove('hot');
+    roughEl.textContent = ex.rough;
+    renderOut(ex, true);
+    busy = false;
+  }
+  function schedule() { clearTimeout(timer); if (!userPicked && !reduce) timer = setTimeout(() => show((current + 1) % EXAMPLES.length).then(schedule), 6500); }
+  chips.forEach((c) => c.addEventListener('click', () => { userPicked = true; clearTimeout(timer); show(+c.dataset.ex); }));
+  schedule();
+
+  /* ---------- in-browser story: type → forge → read → send ---------- */
+  const composer = document.getElementById('composer');
+  const ctext = document.getElementById('ctext');
+  const pill = document.getElementById('pill');
+  const toast = document.getElementById('toast');
+  const howto = [...document.querySelectorAll('#howto li')];
+  const ROUGH = 'write an email to my landlord about the broken heater, firm but polite';
+  const FORGED = `Write an email to my landlord about the broken heater.
+
+<context>
+The heater in my flat is broken. [date it stopped working]
+</context>
+
+<requirements>
+- Tone: firm but polite.
+- Ask when it will be repaired.
+</requirements>
+
+<output_format>
+A subject line, then an email under 150 words.
+</output_format>`;
+  const setStep = (n) => howto.forEach((li, i) => li.classList.toggle('on', i === n));
+  const glyph = () => GLYPH_SET[(Math.random() * GLYPH_SET.length) | 0];
+  const GLYPH_SET = '<>/{}[]#*_=+abcdefghijklmnopqrstuvwxyz';
+  async function story() {
+    for (;;) {
+      setStep(1); toast.innerHTML = ''; ctext.className = 'txt'; composer.classList.remove('glow'); pill.classList.remove('show', 'press');
+      let typed = '';
+      ctext.textContent = '';
+      for (const ch of ROUGH) { typed += ch; ctext.textContent = typed; await sleep(ch === ' ' ? 20 : 34 + Math.random() * 36); }
+      await sleep(350);
+      pill.classList.add('show');
+      await sleep(900);
+      setStep(2); pill.classList.add('press'); composer.classList.add('glow');
+      await sleep(180); pill.classList.remove('press');
+      ctext.className = 'txt code';
+      // scramble into the forged prompt
+      const frames = 22;
+      for (let f = 0; f <= frames; f++) {
+        const k = f / frames, cut = Math.floor(FORGED.length * k);
+        ctext.textContent = FORGED.slice(0, cut) + FORGED.slice(cut, cut + 40).replace(/[^\n ]/g, glyph);
+        await sleep(38);
+      }
+      ctext.innerHTML = esc(FORGED).replace(/&lt;\/?[a-z_]+&gt;/g, (m) => `<span class="tag">${m}</span>`).replace(/\[[^\]]+\]/g, (m) => `<span class="ph">${m}</span>`);
+      pill.classList.remove('show');
+      toast.innerHTML = '<span>Rewritten for <b>Claude</b> · on this computer</span><span>✓ <b>6/6 details kept</b></span><span>Undo</span>';
+      setStep(3);
+      await sleep(5200);
+    }
+  }
+  if (reduce) {
+    ctext.className = 'txt code';
+    ctext.innerHTML = esc(FORGED).replace(/&lt;\/?[a-z_]+&gt;/g, (m) => `<span class="tag">${m}</span>`);
+    toast.innerHTML = '<span>Rewritten for <b>Claude</b> · on this computer</span>';
+  } else if ('IntersectionObserver' in window) {
+    let started = false;
+    new IntersectionObserver((en, obs) => { if (!started && en[0].isIntersecting) { started = true; obs.disconnect(); story(); } }, { threshold: 0.3 }).observe(composer);
+  }
+
+  /* ---------- scroll pipeline ---------- */
+  const pipe = document.getElementById('how');
+  const steps = [...document.querySelectorAll('.step')];
+  const toks = [...document.querySelectorAll('#sentence .tok')];
+  const fill = document.querySelector('.steps');
+  const rStatus = document.getElementById('r-status');
+  const STATUS = ['cleaning up the text', 'target: Claude', 'intent: coding', 'goal, quality, constraint found', 'rewriting with qwen2.5:7b', 'all 8 details kept ✓'];
+  function onScroll() {
+    const r = pipe.getBoundingClientRect();
+    const span = r.height - innerHeight;
+    const prog = span > 0 ? Math.min(1, Math.max(0, -r.top / span)) : 1;
+    const idx = Math.min(steps.length - 1, Math.floor(prog * steps.length));
+    fill.style.setProperty('--prog', (idx / (steps.length - 1)).toFixed(3));
+    steps.forEach((s, i) => s.classList.toggle('on', i <= idx));
+    toks.forEach((t) => {
+      const k = t.dataset.kind;
+      t.classList.toggle('on', (k === 'noise' && idx >= 0 && prog > 0.02) || (idx >= 3 && k !== 'noise'));
+    });
+    rStatus.textContent = STATUS[idx];
+  }
+  addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  /* ---------- tilt cards ---------- */
+  if (finePointer && !reduce) {
+    document.querySelectorAll('.card').forEach((card) => {
+      card.addEventListener('pointermove', (e) => {
+        const r = card.getBoundingClientRect();
+        const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
+        card.classList.add('live');
+        card.style.setProperty('--ry', `${(px - 0.5) * 16}deg`);
+        card.style.setProperty('--rx', `${(0.5 - py) * 14}deg`);
+        card.style.setProperty('--mx', `${px * 100}%`);
+        card.style.setProperty('--my', `${py * 100}%`);
+      });
+      card.addEventListener('pointerleave', () => {
+        card.classList.remove('live');
+        card.style.setProperty('--rx', '0deg'); card.style.setProperty('--ry', '0deg');
+      });
+    });
+  }
+
+  /* ---------- count-up stats (final values are in the HTML at rest) ---------- */
+  if (!reduce && 'IntersectionObserver' in window) {
+    const io = new IntersectionObserver((entries) => {
+      for (const en of entries) {
+        if (!en.isIntersecting) continue;
+        io.unobserve(en.target);
+        const el = en.target, end = +el.dataset.count, small = el.querySelector('small').outerHTML;
+        if (!end) continue;
+        const t0 = performance.now();
+        const tick = (t) => {
+          const k = Math.min(1, (t - t0) / 1100), v = Math.round(end * (1 - Math.pow(1 - k, 3)));
+          el.innerHTML = v + small;
+          if (k < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }
+    }, { threshold: 0.6 });
+    document.querySelectorAll('[data-count]').forEach((el) => io.observe(el));
+  }
+
+  /* ---------- nav scramble ---------- */
+  const GLYPHS = '<>/{}[]#*_=+';
+  document.querySelectorAll('[data-scramble]').forEach((a) => {
+    const text = a.textContent;
+    a.addEventListener('pointerenter', () => {
+      if (reduce) return;
+      let f = 0;
+      const id = setInterval(() => {
+        a.textContent = text.split('').map((c, i) => (i < f / 2 || c === ' ' ? c : GLYPHS[(Math.random() * GLYPHS.length) | 0])).join('');
+        if (++f > text.length * 2) { clearInterval(id); a.textContent = text; }
+      }, 22);
+    });
+  });
+
+  /* ---------- copy ---------- */
+  const copyBtn = document.getElementById('copy');
+  copyBtn.addEventListener('click', () => {
+    const text = document.getElementById('cmd').textContent;
+    const done = () => { copyBtn.textContent = 'Copied'; setTimeout(() => (copyBtn.textContent = 'Copy'), 1600); };
+    const fallback = () => { const range = document.createRange(); range.selectNodeContents(document.getElementById('cmd')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range); copyBtn.textContent = 'Press ⌘C'; };
+    try { navigator.clipboard.writeText(text).then(done, fallback); } catch { fallback(); }
+  });
+})();
+</script>
+<script src="./try.js"></script>
+</body>
+</html>
