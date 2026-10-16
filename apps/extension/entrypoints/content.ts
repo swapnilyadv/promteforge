@@ -7,7 +7,7 @@ type Editable = HTMLTextAreaElement | HTMLElement;
 
 const STYLE = `
   :host { all: initial; }
-  .wrap { position: fixed; z-index: 2147483646; display: none; font: 13px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+  .wrap { position: fixed; right: 24px; bottom: 28px; z-index: 2147483646; display: none; font: 13px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
   .wrap.show { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
   button { font: inherit; cursor: pointer; border: 0; }
   .pill { display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border-radius: 999px; background: #efedf2; color: #0c0c0e; font-weight: 600; box-shadow: 0 6px 24px rgba(0,0,0,.35); transition: transform .15s ease, opacity .15s; }
@@ -50,20 +50,36 @@ function setNativeValue(el: HTMLTextAreaElement, value: string) {
   el.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
+const tick = (ms = 40) => new Promise<void>((r) => setTimeout(r, ms));
+const same = (a: string, b: string) => a.replace(/\s+/g, ' ').trim() === b.replace(/\s+/g, ' ').trim();
+
 /**
- * Replace the whole message. Editors like ProseMirror and Quill keep their own document, so setting
- * innerText would be ignored; a paste event goes through their normal input path and keeps line breaks.
+ * Replace the whole message and confirm it worked. Editors like ProseMirror and Quill keep their own
+ * document and read the selection a moment after it changes, so each attempt selects everything, waits,
+ * then writes; and the result is checked rather than assumed.
  */
-function writeText(el: Editable, text: string) {
+async function writeText(el: Editable, text: string): Promise<boolean> {
   el.focus();
-  if (el instanceof HTMLTextAreaElement) return setNativeValue(el, text);
-  document.execCommand('selectAll');
+  if (el instanceof HTMLTextAreaElement) {
+    setNativeValue(el, text);
+    return true;
+  }
+  const selectAll = async () => {
+    document.execCommand('selectAll');
+    await tick();
+  };
+  // 1) A paste event: goes through the editor's normal input path and keeps line breaks.
+  await selectAll();
   const data = new DataTransfer();
   data.setData('text/plain', text);
-  const paste = new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true });
-  el.dispatchEvent(paste);
-  // If no editor handled the paste, insert as typed text.
-  if (!paste.defaultPrevented) document.execCommand('insertText', false, text);
+  el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+  await tick(60);
+  if (same(readText(el), text)) return true;
+  // 2) Typed insertion over a fresh selection (also replaces anything step 1 left behind).
+  await selectAll();
+  document.execCommand('insertText', false, text);
+  await tick(60);
+  return same(readText(el), text);
 }
 
 function ask(msg: Message): Promise<unknown> {
@@ -98,16 +114,11 @@ export default defineContentScript({
     let hideTimer = 0;
     let toastTimer = 0;
 
+    // The button lives in one fixed spot (bottom right of the window), so it never jumps around while you scroll.
     const place = () => {
       if (!current || !current.isConnected) return void wrap.classList.remove('show');
-      const r = current.getBoundingClientRect();
-      if (r.width < 120 || r.height < 24 || r.bottom < 0 || r.top > innerHeight) return void wrap.classList.remove('show');
       const show = busy || toast.classList.contains('show') || worthForging(readText(current));
       wrap.classList.toggle('show', show);
-      if (!show) return;
-      // Above the box's top-right corner, so it never covers the send button or the text.
-      wrap.style.right = `${Math.max(8, innerWidth - r.right)}px`;
-      wrap.style.bottom = `${Math.max(8, innerHeight - r.top + 8)}px`;
     };
     let raf = 0;
     const schedule = () => {
@@ -144,7 +155,19 @@ export default defineContentScript({
         if (!res) throw new Error('No answer from the extension. Reload this tab and try again.');
         if (!res.ok) return say(esc(res.error), { error: true });
         original = { el, text };
-        writeText(el, res.prompt);
+        const wrote = await writeText(el, res.prompt);
+        if (!wrote) {
+          // The editor refused the replacement: leave the user's text alone and hand them the result.
+          if (el.isConnected) await writeText(el, text);
+          let copied = false;
+          try {
+            await navigator.clipboard.writeText(res.prompt);
+            copied = true;
+          } catch {
+            /* clipboard blocked */
+          }
+          return say(copied ? 'This editor would not take the new text. It is copied: select all and press ⌘V (Ctrl+V).' : 'This editor would not take the new text.', { error: true, ms: 12000 });
+        }
         const who = res.mode === 'llm' ? `by <b>${esc(res.model ?? 'your model')}</b> on this computer` : 'from <b>rules only</b>';
         const warn = res.warnings[0] ? `<div class="sub">${esc(res.warnings[0])}</div>` : '';
         say(`Rewritten for <b>${esc(res.target)}</b> ${who} · ${Math.round(res.kept * 100)}% of your details kept${warn}`, { undo: true, ms: 12000 });
@@ -165,10 +188,10 @@ export default defineContentScript({
     undo.addEventListener('mousedown', (e) => e.preventDefault());
     undo.addEventListener('click', () => {
       if (!original?.el.isConnected) return;
-      writeText(original.el, original.text);
+      const { el, text } = original;
       original = null;
       toast.classList.remove('show');
-      schedule();
+      void writeText(el, text).then(schedule);
     });
 
     document.addEventListener('focusin', (e) => {
@@ -185,8 +208,6 @@ export default defineContentScript({
       }, 250);
     });
     document.addEventListener('input', schedule, true);
-    addEventListener('scroll', schedule, { capture: true, passive: true });
-    addEventListener('resize', schedule, { passive: true });
     document.addEventListener(
       'keydown',
       (e) => {

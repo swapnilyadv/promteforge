@@ -27,6 +27,7 @@ export function createOllama(cfg: OllamaConfig): Provider {
           model: req.model ?? model,
           messages: req.messages,
           stream: true,
+          keep_alive: cfg.keepAlive ?? '15m',
           options: {
             temperature: req.temperature ?? 0.3,
             ...(req.maxTokens ? { num_predict: req.maxTokens } : {}),

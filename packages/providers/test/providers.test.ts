@@ -76,6 +76,7 @@ describe('ollama', () => {
     expect(await p.generate({ messages: msgs })).toBe('Hello');
     expect(calls[0]!.url).toBe('http://localhost:11434/api/chat');
     expect(JSON.parse(String(calls[0]!.init.body)).model).toBe('qwen2.5:7b');
+    expect(JSON.parse(String(calls[0]!.init.body)).keep_alive).toBe('15m');
   });
 });
 
