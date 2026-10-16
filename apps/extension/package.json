@@ -1,0 +1,23 @@
+{
+  "name": "@promptforge/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Forge button for the chat box on Claude, ChatGPT and Gemini. Rewrites with a model on your own computer.",
+  "scripts": {
+    "dev": "wxt",
+    "build": "wxt build",
+    "zip": "wxt zip",
+    "typecheck": "wxt prepare && tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "postinstall": "wxt prepare"
+  },
+  "dependencies": {
+    "@promptforge/core": "workspace:*",
+    "@promptforge/providers": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "^7.0.0",
+    "wxt": "^0.21.4"
+  }
+}

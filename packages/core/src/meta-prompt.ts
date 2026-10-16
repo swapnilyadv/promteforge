@@ -3,7 +3,12 @@ import type { ModelProfile } from './profiles/index.js';
 import type { IntentTemplate } from './templates.js';
 import type { ConvertContext, Intent, Slots, Style, ValidationIssue } from './types.js';
 
-export const META_PROMPT_VERSION = 1;
+export const META_PROMPT_VERSION = 2;
+
+/** Short budgets can't hold every section: small models follow the section list over the word limit. */
+function maxSections(budget: number, available: number): number {
+  return Math.min(available, budget < 120 ? 3 : budget < 200 ? 4 : available);
+}
 
 const LANG_NAMES: Record<string, string> = {
   en: 'English', hi: 'Hindi', bn: 'Bengali', ta: 'Tamil', te: 'Telugu', gu: 'Gujarati',
@@ -51,9 +56,14 @@ function userPrompt(m: MetaPromptInput): string {
   const lines: string[] = [];
   lines.push(`Task type: ${m.intent}${t.role ? ` — the AI should act as ${t.role}` : ''}.`);
   if (m.intent !== 'image') {
-    lines.push('Sections to cover (merge or skip any that would be empty):');
+    const max = maxSections(m.budget, t.sections.length);
+    lines.push(
+      max < t.sections.length
+        ? `Possible sections — use at most ${max}, merging or skipping the rest (never drop a user detail):`
+        : 'Sections to cover (merge or skip any that would be empty):',
+    );
     for (const s of t.sections) lines.push(`- ${s.key}: ${s.guidance}`);
-    if (t.bestPractice.length && m.style !== 'concise') {
+    if (t.bestPractice.length && m.style !== 'concise' && m.budget >= 150) {
       lines.push('Good-practice instructions you may add (process only, no new facts):');
       for (const b of t.bestPractice) lines.push(`- ${b}`);
     }
@@ -82,7 +92,14 @@ function userPrompt(m: MetaPromptInput): string {
     lines.push('The request is already a fairly well-structured prompt: make light, targeted improvements and keep its structure.');
   }
 
-  lines.push('', '<user_request>', m.text, '</user_request>', '', `Now write the improved prompt for ${m.profile.label}.`);
+  lines.push(
+    '',
+    '<user_request>',
+    m.text,
+    '</user_request>',
+    '',
+    `Now write the improved prompt for ${m.profile.label}. Hard limit: ${m.budget} words (not counting pasted code or data). Short and complete beats long and generic: keep every detail the user gave, cut generic advice first.`,
+  );
   return lines.join('\n');
 }
 
@@ -103,6 +120,9 @@ export function buildRepairMessages(base: ChatMessage[], draft: string, issues: 
       content: [
         'That prompt has problems:',
         ...issues.map((i) => `- ${i.message}`),
+        ...(issues.some((i) => i.code === 'too-long')
+          ? ['To shorten: merge sections, drop generic advice and filler, but keep every detail the user gave.']
+          : []),
         '',
         'Rewrite it fixing every problem. Output ONLY the corrected prompt.',
       ].join('\n'),

@@ -11,7 +11,9 @@ You will see a USER'S GOAL context, then two candidate prompts, A and B, for the
 Pick the prompt that would make the target AI produce the more useful, accurate, on-target answer.
 Reward: clear task, relevant context kept, explicit constraints, sensible output format, structure the target AI follows well.
 Penalise: lost or changed user details, invented facts, padding, wrong format for the target.
-Do not prefer a prompt because it is longer. Answer ONLY with JSON: {"winner":"A"|"B"|"tie","reason":"<one short sentence>"}`;
+Do not prefer a prompt because it is longer.
+First compare them: name one concrete thing each prompt does well or loses (a kept or dropped detail, a constraint, the format), then decide. Judge the content, never the position: A and B are in random order.
+Answer ONLY with JSON, the reason BEFORE the verdict: {"reason":"<two short sentences comparing A and B>","winner":"A"|"B"|"tie"}`;
 
 /**
  * Blind pairwise judge. Order is randomised per call so position bias can't favour the engine.
@@ -45,7 +47,7 @@ export async function judgePair(
       { role: 'user', content: user },
     ],
     temperature: 0,
-    maxTokens: 200,
+    maxTokens: 300,
   });
   const m = raw.match(/\{[\s\S]*\}/);
   if (!m) return undefined;

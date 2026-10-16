@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PromptForge</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header><b>✶ PromptForge</b><span id="dot" class="dot" aria-hidden="true"></span></header>
+    <p id="state" class="state">Checking Ollama…</p>
+    <label for="model">Model</label>
+    <select id="model"></select>
+    <label for="style">Length</label>
+    <select id="style">
+      <option value="concise">Concise</option>
+      <option value="balanced">Balanced</option>
+      <option value="detailed">Detailed</option>
+    </select>
+    <section id="help" hidden>
+      <p>Ollama isn't running. Open the Ollama app, or run <code>ollama serve</code>, then reopen this popup.</p>
+      <p>No model yet? Run <code>ollama pull qwen2.5:7b</code>.</p>
+    </section>
+    <p class="foot">On Claude, ChatGPT or Gemini, type a message and press <kbd>⌥⇧F</kbd> or the Forge button. Everything runs on this computer.</p>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

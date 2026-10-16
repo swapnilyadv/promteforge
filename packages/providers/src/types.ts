@@ -39,6 +39,8 @@ export interface BaseConfig {
 export interface OllamaConfig extends BaseConfig {
   type: 'ollama';
   baseUrl?: string;
+  /** How long Ollama keeps the model in memory after a request. Default '15m' (Ollama's own default is 5m). */
+  keepAlive?: string;
 }
 
 export interface OpenAICompatibleConfig extends BaseConfig {

@@ -103,6 +103,11 @@ describe('convert — with a model', () => {
     // Meta-prompt carries Claude-specific rules and the user's text
     expect(seen!.messages[0]!.content).toContain('XML');
     expect(seen!.messages[1]!.content).toContain(BAKERY);
+    // A short request gets a short brief: fewer sections, no generic tips, the limit restated last
+    const user = seen!.messages[1]!.content;
+    expect(user).toContain('use at most 3');
+    expect(user).not.toContain('Good-practice instructions');
+    expect(user.trim().split('\n').at(-1)).toMatch(/Hard limit: \d+ words/);
   });
 
   it('repairs once when the first draft fails validation', async () => {
@@ -113,6 +118,60 @@ describe('convert — with a model', () => {
     expect(r.repairs).toBe(1);
     expect(r.mode).toBe('llm');
     expect(r.validation.ok).toBe(true);
+  });
+
+  it('repairs a draft that drops a detail, naming exactly what to put back', async () => {
+    const text = 'plan a 3 day trip to jaipur for a couple on a mid range budget';
+    const full = '## Goal\nPlan a 3 day trip to Jaipur for a couple on a mid range budget.\n## Output format\nA day-by-day plan.';
+    const short = '## Goal\nPlan a trip to Jaipur for a couple.\n## Output format\nA day-by-day plan.';
+    let calls = 0;
+    let repairAsk = '';
+    const provider = createMock({
+      reply: (req) => {
+        if (req.messages[0]!.content.startsWith('You label')) return 'other'; // the intent check isn't a rewrite call
+        if (++calls === 2) repairAsk = req.messages.at(-1)!.content;
+        return calls === 1 ? short : full;
+      },
+    });
+    const r = await convert({ text, target: 'chatgpt', provider });
+    expect(repairAsk).toContain('"3"');
+    expect(repairAsk).toContain('"range"');
+    expect(r.mode).toBe('llm');
+    expect(r.prompt).toContain('mid range');
+    expect(r.validation.issues.map((i) => i.code)).not.toContain('dropped-details');
+  });
+
+  it('lets the model override an unsure keyword guess, and says so', async () => {
+    // No keyword fires for this request (rules say "other"), but it is clearly a brainstorm.
+    const text = 'fun team activities for a remote team of 12 people across 3 time zones, nothing cringe';
+    let intentAsked = false;
+    const provider = createMock({
+      reply: (req) => {
+        if (req.messages[0]!.content.startsWith('You label')) {
+          intentAsked = true;
+          return 'brainstorming';
+        }
+        return '## Goal\nSuggest fun team activities for a remote team of 12 people across 3 time zones, nothing cringe.\n## Output format\nA short list.';
+      },
+    });
+    const r = await convert({ text, target: 'chatgpt', provider });
+    expect(intentAsked).toBe(true);
+    expect(r.intent).toBe('brainstorming');
+    expect(r.intentSource).toBe('model');
+  });
+
+  it('keeps the rules when the model check fails or is unclear, and never asks when told the intent', async () => {
+    const text = 'give me a high protein vegetarian meal plan for a week';
+    const unclear = createMock({ reply: (req) => (req.messages[0]!.content.startsWith('You label') ? 'maybe coding or writing' : '## Goal\nMeal plan.\n## Output format\nA table.') });
+    const r = await convert({ text, target: 'chatgpt', provider: unclear });
+    expect(r.intentSource).toBe('rules');
+
+    let asked = 0;
+    const counting = createMock({ reply: (req) => (req.messages[0]!.content.startsWith('You label') ? (asked++, 'coding') : '## Goal\nMeal plan.\n## Output format\nA table.') });
+    const forced = await convert({ text, target: 'chatgpt', provider: counting, intent: 'other' });
+    expect(asked).toBe(0);
+    expect(forced.intent).toBe('other');
+    expect(forced.intentSource).toBe('user');
   });
 
   it('falls back to offline when the model drops the user meaning', async () => {

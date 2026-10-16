@@ -8,7 +8,8 @@ const STOPWORDS = new Set(
   more most other ought ours ourselves over same should some such than that their theirs them
   themselves then there these they this those through under until very want what when where which
   while whom with would your yours yourself yourselves will shall make please thanks thank need like
-  really something anything everything kind sort give some only also good nice well want wants`
+  really something anything everything kind sort give some only also good nice well want wants
+  generate create draw write build image picture dont don't doesnt doesn't cant can't wont won't`
     .split(/\s+/)
     .filter(Boolean),
 );
@@ -18,15 +19,22 @@ export function keywords(text: string, inputs: string[] = []): string[] {
   let t = text.replace(/```[\s\S]*?```/g, ' ');
   for (const i of inputs) t = t.split(i).join(' ');
   const words = t.toLowerCase().match(/[\p{L}\p{N}][\p{L}\p{N}'.+#-]*/gu) ?? [];
-  return [...new Set(words.map((w) => w.replace(/[.'-]+$/, '')).filter((w) => w.length >= 4 && !STOPWORDS.has(w)))];
+  // Numbers are details too ("3 day", "10mb"), however short.
+  const keep = (w: string) => (/\d/.test(w) || w.length >= 4) && !STOPWORDS.has(w);
+  return [...new Set(words.map((w) => w.replace(/[.'-]+$/, '')).filter(keep))];
+}
+
+/** The user's key words that don't appear in the output. */
+export function missingKeywords(original: string, output: string, inputs: string[] = []): string[] {
+  // "₹70,000" keeps "70000".
+  const out = output.toLowerCase().replace(/(\d),(?=\d)/g, '$1');
+  return keywords(original, inputs).filter((k) => !(out.includes(k) || (k.length > 6 && out.includes(k.slice(0, 6)))));
 }
 
 export function keywordRecall(original: string, output: string, inputs: string[] = []): number {
   const kws = keywords(original, inputs);
   if (kws.length === 0) return 1;
-  const out = output.toLowerCase();
-  const hit = kws.filter((k) => out.includes(k) || (k.length > 6 && out.includes(k.slice(0, 6)))).length;
-  return Number((hit / kws.length).toFixed(2));
+  return Number(((kws.length - missingKeywords(original, output, inputs).length) / kws.length).toFixed(2));
 }
 
 const PREAMBLE = /^(here('s| is| are)|sure[,!.]|certainly|of course|below is|okay[,!.]|ok[,!.]|absolutely|great[,!.]|i('ve| have) (rewritten|created|improved))/i;
@@ -50,6 +58,12 @@ export function postprocess(raw: string): string {
   return s;
 }
 
+/**
+ * A line that opens a section: "## Goal", "**Goal**", "**Goal:** text", "**Goal**: text" or "Goal: text".
+ * Models write all of these; each is a clear, labelled section.
+ */
+const SECTION_LABEL = /^(#{1,4} \S.*|\*\*[^*\n]{2,40}(:\*\*|\*\*:?)(\s.*)?|[A-Z][A-Za-z &/]{2,30}:(\s.*)?)$/gm;
+
 function hasStructure(prompt: string, structure: Structure): boolean {
   switch (structure) {
     case 'xml': {
@@ -57,14 +71,10 @@ function hasStructure(prompt: string, structure: Structure): boolean {
       return tags.length >= 2;
     }
     case 'markdown':
-    case 'code': {
-      const headers = prompt.match(/^(#{1,4} .+|\*\*[^*\n]+\*\*:?\s*$|[A-Z][A-Za-z &/]{2,30}:\s*$)/gm) ?? [];
-      return headers.length >= 2;
-    }
-    case 'task-first': {
-      const labels = prompt.match(/^(#{1,4} .+|\*\*?[^*\n]{2,30}\*\*?:|[A-Z][A-Za-z &/]{2,30}:)/gm) ?? [];
-      return labels.length >= 1;
-    }
+    case 'code':
+      return (prompt.match(SECTION_LABEL) ?? []).length >= 2;
+    case 'task-first':
+      return (prompt.match(SECTION_LABEL) ?? []).length >= 1;
     case 'image':
       return true;
   }
@@ -97,6 +107,12 @@ export function validatePrompt(v: ValidateInput): ValidationReport {
     issues.push({
       code: 'meaning-drift',
       message: `It dropped too many of the user's own details (kept ${Math.round(recall * 100)}% of key words). Keep every goal, name and constraint the user gave.`,
+    });
+  } else if (recall < 1) {
+    const missing = missingKeywords(v.original, prompt, v.slots.inputs);
+    issues.push({
+      code: 'dropped-details',
+      message: `It left out details the user gave: ${missing.map((w) => `"${w}"`).join(', ')}. Put each one back, in the user's words.`,
     });
   }
   for (const input of v.slots.inputs) {
