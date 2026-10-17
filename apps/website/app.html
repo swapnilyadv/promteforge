@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0c0c0e" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="PromptForge" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="description" content="Write it the way you'd say it. Get the prompt." />
+<link rel="manifest" href="./manifest.webmanifest" />
+<link rel="icon" href="./icons/icon-192.png" />
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@300..900&family=Instrument+Sans:wght@400..700&family=JetBrains+Mono:wght@400;600&display=swap">
+<title>PromptForge</title>
+<style>
+/* The same tokens and type as the landing page. */
+:root {
+  --bg: #0c0c0e; --bg-2: #141417; --panel: #18181c; --fg: #efedf2; --muted: #8f8c96;
+  --line: rgba(239, 237, 242, 0.09); --heat: #ff9a4d;
+  --display: "Unbounded", "Arial Black", system-ui, sans-serif;
+  --body: "Instrument Sans", "Helvetica Neue", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.5;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
+}
+.app { min-height: 100%; display: flex; flex-direction: column; gap: 16px; padding: 22px 18px 24px; max-width: 720px; margin: 0 auto; }
+header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.logo { font-family: var(--display); font-weight: 800; font-size: 18px; letter-spacing: -0.03em; display: flex; align-items: center; gap: 10px; }
+.logo i { width: 20px; height: 20px; border-radius: 6px; background: url(./icons/icon-192.png) center/cover; display: inline-block; }
+.eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--display); font-weight: 300; font-size: clamp(1.6rem, 7vw, 2.4rem); line-height: 1.02; letter-spacing: -0.02em; margin: 6px 0 0; text-wrap: balance; }
+.pane { background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+select { background: var(--bg-2); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; font: inherit; }
+textarea { width: 100%; min-height: 150px; resize: vertical; background: var(--bg-2); color: var(--fg); border: 1px solid var(--line); border-radius: 14px; padding: 14px; font: 16px/1.5 var(--body); }
+textarea:focus, select:focus, button:focus-visible { outline: 2px solid var(--heat); outline-offset: 2px; }
+pre#try-out { margin: 0; min-height: 180px; white-space: pre-wrap; word-break: break-word; font: 13.5px/1.6 var(--mono); color: #d9d6de; background: var(--bg-2); border: 1px solid var(--line); border-radius: 14px; padding: 14px; overflow: auto; }
+pre#try-out.empty { color: var(--muted); font-family: var(--body); font-size: 15px; }
+.meta { font: 12px/1.4 var(--mono); color: var(--muted); min-height: 1.4em; }
+.btn { font: 600 15px/1 var(--body); border: 0; border-radius: 999px; padding: 14px 20px; background: var(--fg); color: var(--bg); cursor: pointer; }
+.btn.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+.btn:disabled { opacity: .5; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.actions .btn { flex: 1; }
+#install { background: var(--heat); color: var(--bg); }
+.hint { color: var(--muted); font-size: 14px; }
+.hint b { color: var(--fg); font-weight: 600; }
+#ios-help[hidden], #install[hidden] { display: none; }
+</style>
+</head>
+<body>
+<main class="app">
+  <header>
+    <div class="logo"><i></i>PromptForge</div>
+    <button id="install" class="btn" type="button" hidden>Install app</button>
+  </header>
+
+  <div>
+    <span class="eyebrow">Write it the way you'd say it</span>
+    <h1>Get the prompt.</h1>
+  </div>
+
+  <div class="pane">
+    <div class="row">
+      <span class="eyebrow">Your message</span>
+      <select id="try-target" aria-label="Target AI"></select>
+    </div>
+    <textarea id="try-input" placeholder="e.g. write an email to my landlord about the broken heater, firm but polite" aria-label="Your rough message"></textarea>
+    <div class="actions">
+      <button class="btn" id="try-go" type="button">Convert to prompt →</button>
+    </div>
+  </div>
+
+  <div class="pane">
+    <div class="row">
+      <span class="eyebrow">The prompt</span>
+      <button class="btn ghost" id="try-copy" type="button" disabled>Copy</button>
+    </div>
+    <pre id="try-out" class="empty" aria-live="polite">Your engineered prompt appears here.</pre>
+    <div id="try-meta" class="meta"></div>
+  </div>
+
+  <p class="hint" id="ios-help" hidden>
+    To install on iPhone or iPad: tap <b>Share</b> (the square with an arrow) in Safari, then <b>Add to Home Screen</b>.
+  </p>
+  <p class="hint">Runs on this device. Nothing you type is sent anywhere.</p>
+</main>
+
+<script src="./try.js"></script>
+<script>
+// Install: Android and desktop Chrome/Edge offer a real install prompt; iPhone and iPad need the Share menu.
+(() => {
+  let deferred = null;
+  const btn = document.getElementById('install');
+  const iosHelp = document.getElementById('ios-help');
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  if (standalone) { btn.hidden = true; iosHelp.hidden = true; }
+  else if (ios) { btn.hidden = false; btn.textContent = 'How to install'; btn.onclick = () => (iosHelp.hidden = !iosHelp.hidden); }
+
+  addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferred = e;
+    btn.hidden = false;
+    btn.textContent = 'Install app';
+  });
+  btn.addEventListener('click', async () => {
+    if (!deferred) return;
+    deferred.prompt();
+    await deferred.userChoice;
+    deferred = null;
+    btn.hidden = true;
+  });
+  addEventListener('appinstalled', () => { btn.hidden = true; });
+
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>

@@ -7,6 +7,8 @@
 <title>PromptForge</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="manifest" href="./manifest.webmanifest" />
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@300..900&family=Instrument+Sans:wght@400..700&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
 /* Layout: a dark forge in graphite and brushed chrome. One warm "heat" accent marks what the engine touches; everything else is monochrome. */
@@ -374,6 +376,10 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
           <pre class="try-out empty" id="try-out" aria-live="polite">Your engineered prompt appears here.</pre>
           <div class="try-meta" id="try-meta"></div>
         </div>
+      </div>
+      <div class="actions" style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+        <a class="btn ghost" href="./app.html">Open the app on your phone →</a>
+        <span class="hint">Install it to your home screen: one tap, no browser bar.</span>
       </div>
       <p class="try-note"><b>This runs in your browser.</b> The rules-based engine builds the prompt on this device. Nothing you type is sent anywhere. For a rewrite by a language model, install the <a href="#start" style="text-decoration:underline">browser extension or the command line</a>, which use a model on your own computer.</p>
     </div>
@@ -914,5 +920,6 @@ A subject line, then an email under 150 words.
 })();
 </script>
 <script src="./try.js"></script>
+<script>if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("./sw.js").catch(()=>{});</script>
 </body>
 </html>

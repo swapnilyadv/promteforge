@@ -1,0 +1,17 @@
+{
+  "name": "PromptForge",
+  "short_name": "PromptForge",
+  "description": "Type rough, get a prompt. Write it the way you'd say it and get a model-aware prompt for Claude, ChatGPT, Gemini and Cursor.",
+  "id": "./app.html",
+  "start_url": "./app.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0c0c0e",
+  "theme_color": "#0c0c0e",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
