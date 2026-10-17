@@ -72,6 +72,28 @@ p { margin: 0; }
 .try button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
 button:disabled { opacity: .5; cursor: not-allowed; }
 
+/* ---------- install button + guide ---------- */
+.nav-actions { display: flex; gap: 10px; align-items: center; }
+.btn.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+.btn.ghost:hover { border-color: rgba(239, 237, 242, .4); }
+#nav-install[hidden] { display: none; }
+@media (max-width: 480px) { .hide-s { display: none; } .nav-actions { gap: 8px; } .nav .btn { padding: 11px 14px; font-size: 14px; } .logo { font-size: 16px; } }
+.sheet { position: fixed; inset: 0; z-index: 90; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; background: rgba(5, 5, 7, .62); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); padding: 16px 16px calc(env(safe-area-inset-bottom, 0px) + 16px); }
+.sheet[hidden] { display: none; }
+.sheet-card { position: relative; width: 100%; max-width: 440px; background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 22px 22px 20px; animation: sheet-in .45s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes sheet-in { from { transform: translateY(40px); opacity: 0; } }
+.sheet-card h3 { font-family: var(--display); font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin: 8px 0 14px; }
+.sheet-card ol { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 12px; }
+.sheet-card li { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; align-items: center; font-size: 16px; }
+.sheet-card li .n { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font: 600 12px var(--mono); background: var(--fg); color: var(--bg); }
+.sheet-card li b { font-weight: 600; }
+.sheet-card .ico { display: inline-block; vertical-align: -4px; width: 20px; height: 20px; }
+.sheet-card .note { color: var(--muted); font-size: 14px; margin: 0; }
+.sheet-x { position: absolute; top: 12px; right: 14px; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg-2); color: var(--fg); font-size: 18px; line-height: 1; cursor: pointer; }
+.sheet-arrow { margin-top: 10px; font-size: 26px; color: var(--heat); animation: bob 1.1s ease-in-out infinite; }
+.sheet-arrow[hidden] { display: none; }
+@keyframes bob { 50% { transform: translateY(8px); } }
+
 /* ---------- cursor ---------- */
 .cursor-dot, .cursor-ring { position: fixed; left: 0; top: 0; pointer-events: none; z-index: 100; border-radius: 50%; display: none; }
 body.has-cursor .cursor-dot, body.has-cursor .cursor-ring { display: block; }
@@ -306,7 +328,10 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
       <a href="#targets" data-scramble>Targets</a>
       <a href="#proof" data-scramble>Evals</a>
     </nav>
-    <a class="btn magnetic" href="#start"><span>Get the CLI</span></a>
+    <div class="nav-actions">
+      <button class="btn ghost" id="nav-install" type="button"><span>Install</span></button>
+      <a class="btn magnetic" href="#start"><span><span class="hide-s">Get the </span>CLI</span></a>
+    </div>
   </div>
 </header>
 
@@ -919,7 +944,64 @@ A subject line, then an email under 150 words.
   });
 })();
 </script>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden>
+  <div class="sheet-card">
+    <button class="sheet-x" id="sheet-x" type="button" aria-label="Close">×</button>
+    <span class="eyebrow">Add to your home screen</span>
+    <h3 id="sheet-title">Two taps and it's an app.</h3>
+    <ol id="sheet-steps">
+      <li><span class="n">1</span><span>Tap <b>Share</b> <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg> at the bottom of the screen</span></li>
+      <li><span class="n">2</span><span>Choose <b>Add to Home Screen</b>, then <b>Add</b></span></li>
+    </ol>
+    <p class="note" id="sheet-note">It opens straight to the converter, full screen, with no browser bar. On iPhone this works in Safari.</p>
+  </div>
+  <div class="sheet-arrow" id="sheet-arrow" aria-hidden="true">↓</div>
+</div>
 <script src="./try.js"></script>
 <script>if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("./sw.js").catch(()=>{});</script>
+<script>
+// Install button. Android and desktop Chrome/Edge install straight from the click. iPhone and iPad cannot
+// install from a click (Apple allows only Share > Add to Home Screen), so a guide slides up instead, and the
+// address is set to the app page while it is open, so the saved icon opens the converter, not this whole site.
+(() => {
+  const btn = document.getElementById('nav-install');
+  const sheet = document.getElementById('sheet');
+  const arrow = document.getElementById('sheet-arrow');
+  const note = document.getElementById('sheet-note');
+  const steps = document.getElementById('sheet-steps');
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  let deferred = null;
+  let originalUrl = null;
+  if (standalone) { btn.hidden = true; return; }
+
+  addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferred = e; });
+  addEventListener('appinstalled', () => { btn.hidden = true; });
+
+  function openGuide() {
+    if (!ios) {
+      steps.innerHTML = '<li><span class="n">1</span><span>Open your browser menu <b>⋮</b> or <b>Share</b></span></li><li><span class="n">2</span><span>Choose <b>Install app</b> or <b>Add to Home Screen</b></span></li>';
+      note.textContent = 'This browser does not offer one-tap install. The menu has it.';
+      arrow.hidden = true;
+    }
+    if (ios) {
+      try { originalUrl = location.href; history.replaceState(null, '', new URL('./app.html', location.href).href); } catch { /* keep the page address */ }
+    }
+    sheet.hidden = false;
+    document.getElementById('sheet-x').focus();
+  }
+  function closeGuide() {
+    sheet.hidden = true;
+    if (originalUrl) { try { history.replaceState(null, '', originalUrl); } catch {} originalUrl = null; }
+  }
+  btn.addEventListener('click', async () => {
+    if (deferred) { deferred.prompt(); await deferred.userChoice; deferred = null; return; }
+    openGuide();
+  });
+  document.getElementById('sheet-x').addEventListener('click', closeGuide);
+  sheet.addEventListener('click', (e) => { if (e.target === sheet) closeGuide(); });
+  addEventListener('keydown', (e) => { if (e.key === 'Escape' && !sheet.hidden) closeGuide(); });
+})();
+</script>
 </body>
 </html>
