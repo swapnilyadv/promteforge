@@ -1,7 +1,7 @@
 import { browser } from 'wxt/browser';
 import { defineBackground } from 'wxt/utils/define-background';
 import { forge, status } from '../lib/forge.js';
-import type { Message, PortIn, PortOut } from '../lib/messages.js';
+import type { Message, PortIn, PortOut, Stage } from '../lib/messages.js';
 import { ensureOllamaAccess } from '../lib/ollama-origin.js';
 import { loadSettings } from '../lib/settings.js';
 
@@ -39,9 +39,9 @@ export default defineBackground(() => {
         };
         let text = '';
         let lastSent = 0;
-        let stage: 'checking-intent' | 'rewriting' | 'repairing' = 'checking-intent';
+        let stage: Stage = 'cleaning';
         const progress = () => send({ type: 'progress', stage, words: (text.match(/\S+/g) ?? []).length });
-        const result = await forge({ text: req.text, url: req.url }, await loadSettings(), undefined, undefined, {
+        const result = await forge({ text: req.text, url: req.url, strategy: req.strategy }, await loadSettings(), undefined, undefined, {
           signal: abort.signal,
           onStage: (s) => {
             stage = s;

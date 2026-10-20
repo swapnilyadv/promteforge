@@ -43,3 +43,12 @@ Session 6 prep: 61 tests (providers 10, incl. slow-stream and stalled-stream tim
 - Model drafts run long: the cases that did use the model failed the length budget (e.g. 185 words against a budget of 126, even after the repair pass). First thing to tune.
 - Cloud adapters are still only tested against recorded stream formats, not live APIs.
 - Not under version control yet: the project sits untracked inside a Desktop-level git repo, and `.github/workflows/` only holds an empty file named `ci.yml 1.`. The branch/tag routine above and CI have not actually run.
+
+## Product direction change (Oct 2026): rewrite, don't just reformat
+
+Feedback: asking ChatGPT/Claude to "turn this into a prompt" rewrites the request, fixes typos, and gives a different strategy each time you ask. PromptForge kept the user's exact words (typos included) inside one template. Changed:
+- **Clean-up step** before anything else: a short model call fixes spelling and grammar (accepted only if it is plainly the same message: same numbers, most words kept, similar length); without a model, a rules-based tidy of common slips.
+- **Six strategies** (`strategies.ts`), each a different required layout for the model, because a small 7B model ignored a *description* of an approach but follows a *layout*. "Another way" cycles them from the original words.
+- **No invented decisions:** a validator flags technologies the user never named (React, Stripe, PostgreSQL...) and the repair pass swaps them for placeholders.
+- `pnpm ship` rebuilds, tests and reinstalls everything after an engine change.
+Known limits: spelling fixes without a model cover only common slips; non-brief approaches take 20–45 s on a 7B model on this Mac; the strategies have been compared by eye on a few requests, not yet scored by the eval harness.

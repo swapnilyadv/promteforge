@@ -1,9 +1,10 @@
 import type { ChatMessage } from '@promptforge/providers';
 import type { ModelProfile } from './profiles/index.js';
 import type { IntentTemplate } from './templates.js';
+import type { Strategy } from './strategies.js';
 import type { ConvertContext, Intent, Slots, Style, ValidationIssue } from './types.js';
 
-export const META_PROMPT_VERSION = 2;
+export const META_PROMPT_VERSION = 3;
 
 /** Short budgets can't hold every section: small models follow the section list over the word limit. */
 function maxSections(budget: number, available: number): number {
@@ -28,6 +29,7 @@ export interface MetaPromptInput {
   alreadyStructured: boolean;
   missing: (keyof Slots)[];
   context?: ConvertContext;
+  strategy: Strategy;
 }
 
 function systemPrompt(m: MetaPromptInput): string {
@@ -36,8 +38,8 @@ function systemPrompt(m: MetaPromptInput): string {
     `You are PromptForge, a world-class prompt engineer. You rewrite a user's rough request into the best possible prompt for ${m.profile.label}.`,
     '',
     'NON-NEGOTIABLE RULES',
-    "1. Preserve meaning: keep every goal, fact, name, number, constraint and preference the user gave. Do not drop any of them.",
-    '2. Never invent specifics the user did not give (names, numbers, tech choices, data, deadlines). Where a missing detail matters, insert a short bracketed placeholder like [target audience].',
+    "1. Preserve meaning: keep every goal, fact, name, number, constraint and preference the user gave. Do not drop any of them. Fix spelling and grammar mistakes silently, and write the prompt in clean, natural wording: do not copy the user's typos or clumsy phrasing.",
+    '2. Never invent specifics the user did not give (names, numbers, data, deadlines), and never pick technologies, frameworks, libraries, databases or providers for them, not even as an example in brackets: use a placeholder like [framework] instead. Where a missing detail matters, insert a short bracketed placeholder like [target audience]. The only exception is a sample that the approach asks for, which must be marked as illustrative.',
     '3. Copy code, error messages, data and quoted text EXACTLY as given, inside their own clearly delimited section.',
     '4. Write the prompt in the user\'s voice, addressed to the AI (e.g. "You are…", "Write…"). It is a prompt, not an answer — do not perform the task.',
     `5. Write in ${lang} (keep code and technical terms as they are).`,
@@ -56,13 +58,20 @@ function userPrompt(m: MetaPromptInput): string {
   const lines: string[] = [];
   lines.push(`Task type: ${m.intent}${t.role ? ` — the AI should act as ${t.role}` : ''}.`);
   if (m.intent !== 'image') {
-    const max = maxSections(m.budget, t.sections.length);
+    lines.push(`APPROACH — ${m.strategy.name}: ${m.strategy.instruction}`);
+    lines.push('The approach decides how the prompt works; the target layout decides how it is laid out. Do both.');
+  }
+  const layout = m.strategy.skeleton ?? t.sections;
+  if (m.intent !== 'image') {
+    const max = m.strategy.skeleton ? layout.length : maxSections(m.budget, t.sections.length);
     lines.push(
-      max < t.sections.length
-        ? `Possible sections — use at most ${max}, merging or skipping the rest (never drop a user detail):`
-        : 'Sections to cover (merge or skip any that would be empty):',
+      m.strategy.skeleton
+        ? 'Use EXACTLY these sections, in this order, each with its own heading or tag, headings written in normal Title Case. The approach lives in them, so do not drop or merge any:'
+        : max < t.sections.length
+          ? `Possible sections — use at most ${max}, merging or skipping the rest (never drop a user detail):`
+          : 'Sections to cover (merge or skip any that would be empty):',
     );
-    for (const s of t.sections) lines.push(`- ${s.key}: ${s.guidance}`);
+    for (const s of layout) lines.push(`- ${s.key}: ${s.guidance}`);
     if (t.bestPractice.length && m.style !== 'concise' && m.budget >= 150) {
       lines.push('Good-practice instructions you may add (process only, no new facts):');
       for (const b of t.bestPractice) lines.push(`- ${b}`);
@@ -85,7 +94,7 @@ function userPrompt(m: MetaPromptInput): string {
     const ph = m.missing.map((k) => t.placeholders[k]).filter(Boolean);
     if (ph.length) lines.push(`Not stated by the user (use placeholders if they matter): ${ph.join(', ')}.`);
   }
-  if (m.askQuestions && m.missing.length && m.style !== 'concise') {
+  if (m.askQuestions && m.missing.length && m.style !== 'concise' && m.strategy.id !== 'interview') {
     lines.push('End the prompt with one line telling the AI to ask up to 3 short clarifying questions if key details are missing, otherwise to state assumptions and proceed.');
   }
   if (m.alreadyStructured) {

@@ -69,6 +69,33 @@ convert({ text, target?, context?, style?, provider? })
 
 Result: `{ prompt, target, intent, mode, changes[], placeholders[], warnings[], validation }`.
 
+## Different approaches, clean wording
+
+PromptForge does not just reformat your words. It first **fixes spelling and grammar** (a short model call; without a model, a tidy-up of common slips), then builds the prompt with one of six **approaches**:
+
+| # | Approach | What the prompt does |
+| --- | --- | --- |
+| 1 | Clear brief | Task first, then context, requirements, output format |
+| 2 | Expert persona | A specific senior expert is briefed like a colleague: what great looks like, trade-offs |
+| 3 | Step by step | Four phases: restate, plan, do, check |
+| 4 | Ask me first | The AI asks 4–6 sharp questions before it starts |
+| 5 | Show an example | A short "what good looks like" sample and a mistake to avoid |
+| 6 | Draft, then critique | First draft, a checklist critique, then an improved final version |
+
+The first Forge uses the clear brief. Press **Forge again** (the button says *Another way*) and you get the next approach, built from your original words each time. The same works in the Chrome extension, the VS Code / Cursor / Antigravity extension, the website and the CLI, because they all use `@promptforge/core` (`packages/core/src/strategies.ts`).
+
+The prompt never invents a decision for you: technologies, names and numbers you did not give become placeholders like `[framework]`.
+
+## One change, everywhere
+
+Edit the engine once (`packages/core`), then run:
+
+```bash
+pnpm ship
+```
+
+It builds and tests everything, repackages the editor extension and reinstalls it into VS Code, Cursor and Antigravity, and rebuilds the Chrome extension and the website. Afterwards: reload the editor window, click the reload arrow on the extension in `chrome://extensions`, and `git push` to publish the website (Vercel deploys `main`).
+
 ## Development
 
 | Command | What it does |

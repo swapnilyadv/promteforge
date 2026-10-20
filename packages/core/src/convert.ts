@@ -1,11 +1,13 @@
 import { ProviderError, type ChatMessage, type Provider } from '@promptforge/providers';
 import { wordBudget } from './budget.js';
+import { basicClean, cleanWithModel } from './clean.js';
 import { classifyIntent } from './intent.js';
 import { confirmIntent } from './intent-confirm.js';
 import { buildMetaPrompt, buildRepairMessages } from './meta-prompt.js';
 import { normalize, restoreSecrets } from './normalize.js';
 import { getProfile, type ModelProfile } from './profiles/index.js';
 import { renderOffline } from './render-offline.js';
+import { getStrategy, withOfflineApproach } from './strategies.js';
 import { extractSlots, missingSlots } from './slots.js';
 import { detectTarget } from './target.js';
 import { getTemplate, type IntentTemplate } from './templates.js';
@@ -105,8 +107,9 @@ async function runModel(
   opts: ConvertOptions,
   maxTokens: number,
   stream: boolean,
+  temperature = 0.2,
 ): Promise<string> {
-  const req = { messages, model: opts.model, temperature: 0.2, maxTokens, signal: opts.signal };
+  const req = { messages, model: opts.model, temperature, maxTokens, signal: opts.signal };
   if (!stream || !opts.onToken) return provider.generate(req);
   let out = '';
   for await (const tok of provider.stream(req)) {
@@ -130,7 +133,26 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
   const t0 = Date.now();
   if (!opts.text || !opts.text.trim()) throw new Error('convert: text is empty');
 
-  let a = analyze(opts);
+  // Fix spelling and grammar first, so the rest of the pipeline (and the prompt) works from clean text.
+  // With a model it is a short correction call; without one, a light rules-based tidy.
+  let working = opts.text;
+  let cleaned: string | undefined;
+  if (opts.provider) {
+    const sendSecrets = opts.provider.isLocal || opts.allowSecretsToCloud;
+    const redacted = normalize(opts.text);
+    if (sendSecrets || redacted.redactions.length === 0) {
+      opts.onStage?.('cleaning');
+      cleaned = await cleanWithModel(opts.provider, opts.text, { model: opts.model, signal: opts.signal });
+    }
+  } else {
+    const t = basicClean(opts.text);
+    if (t !== opts.text.trim()) cleaned = t;
+  }
+  if (cleaned && cleaned.trim() !== opts.text.trim()) working = cleaned;
+  else cleaned = undefined;
+  const strategy = getStrategy(opts.strategy);
+
+  let a = analyze({ ...opts, text: working });
   let intentSource: ConvertResult['intentSource'] = opts.intent ? 'user' : 'rules';
   // Keyword rules latch onto surface words ("discount code" → coding). When they are unsure and a
   // model is connected, let it read the sentence and confirm or override. Any failure keeps the rules' answer.
@@ -140,13 +162,15 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
     opts.onStage?.('checking-intent');
     const confirmed = await confirmIntent(opts.provider, text, a.intent, { model: opts.model, signal: opts.signal });
     if (confirmed && confirmed !== a.intent) {
-      a = analyze({ ...opts, intent: confirmed });
+      a = analyze({ ...opts, text: working, intent: confirmed });
       intentSource = 'model';
     }
   }
   const askQuestions = opts.askQuestions ?? true;
   const warnings: string[] = [];
   const { normalized } = a;
+  // Approaches other than the plain brief add a section or two, so they get a little more room.
+  const budget = Math.round(a.budget * strategy.extraWords);
   const checkRecall = normalized.language === 'en';
 
   const offline = renderOffline({
@@ -157,7 +181,7 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
     template: a.template,
     context: opts.context,
     askQuestions,
-    budget: a.budget,
+    budget,
   });
   const validateFor = (prompt: string): ValidationReport =>
     validatePrompt({
@@ -165,11 +189,12 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
       original: normalized.text,
       slots: a.slots,
       structure: a.profile.structure,
-      budget: a.budget,
+      budget,
       checkRecall,
+      allowedTerms: [opts.context?.languageId ?? '', ...(opts.context?.workspaceFiles ?? [])],
     });
 
-  let prompt = offline.prompt;
+  let prompt = a.profile.structure === 'image' ? offline.prompt : withOfflineApproach(offline.prompt, strategy.id, a.profile.structure);
   let changes = offline.changes;
   let mode: ConvertResult['mode'] = 'offline';
   let fallback: ConvertResult['fallback'];
@@ -203,26 +228,27 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
       template: a.template,
       slots: a.slots,
       style: a.style,
-      budget: a.budget,
+      budget,
       language: normalized.language,
+      strategy,
       askQuestions,
       alreadyStructured: a.alreadyStructured,
       missing: a.missing,
       context: opts.context,
     });
     const inputWords = a.slots.inputs.join(' ').split(/\s+/).length;
-    const maxTokens = Math.round((a.budget + inputWords) * 2.2) + 200;
+    const maxTokens = Math.round((budget + inputWords) * 2.2) + 200;
 
     try {
       opts.onStage?.('rewriting');
-      let draft = postprocess(await runModel(provider, messages, opts, maxTokens, true));
+      let draft = postprocess(await runModel(provider, messages, opts, maxTokens, true, strategy.temperature));
       let report = validateFor(draft);
 
       if (!report.ok) {
         repairs = 1;
         opts.onStage?.('repairing');
         const fixed = postprocess(
-          await runModel(provider, buildRepairMessages(messages, draft, report.issues), opts, maxTokens, false),
+          await runModel(provider, buildRepairMessages(messages, draft, report.issues), opts, maxTokens, false, strategy.temperature),
         );
         const fixedReport = validateFor(fixed);
         if (fixedReport.issues.length < report.issues.length || fixedReport.ok) {
@@ -241,7 +267,8 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
         validation = report;
         mode = 'llm';
         changes = [
-          `Rewritten for ${a.profile.label} by ${provider.id}${provider.isLocal ? ' (on this computer)' : ''}`,
+          `Rewritten for ${a.profile.label} by ${provider.id}${provider.isLocal ? ' (on this computer)' : ''}, approach: ${strategy.name}`,
+          ...(cleaned ? ['Fixed spelling and grammar in your message'] : []),
           ...offline.changes.slice(0, 4),
         ];
         if (!report.ok) warnings.push(...report.issues.map((i) => i.message));
@@ -267,6 +294,8 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
     intent: a.intent,
     intentConfidence: a.intentConfidence,
     intentSource,
+    strategy: strategy.id,
+    cleaned,
     style: a.style,
     language: normalized.language,
     mode,

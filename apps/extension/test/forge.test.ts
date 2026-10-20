@@ -44,6 +44,35 @@ describe('forge', () => {
     expect(r.prompt).toContain('<'); // Claude gets XML sections even without a model
   });
 
+  it('builds the prompt with the approach it is asked for, and says which one', async () => {
+    let sawApproach = '';
+    const r = await forge({ text: ROUGH, url: 'https://claude.ai/new', strategy: 'interview' }, settings, () =>
+      createMock({
+        type: 'mock',
+        isLocal: true,
+        reply: (req) => {
+          if (req.messages[0]!.content.startsWith('You fix spelling')) return req.messages[1]!.content;
+          if (req.messages[0]!.content.startsWith('You label')) return 'email';
+          sawApproach = req.messages[1]!.content;
+          return GOOD;
+        },
+      }), ['qwen2.5:7b']);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.strategy).toEqual({ id: 'interview', name: 'Ask me first' });
+    expect(sawApproach).toContain('APPROACH — Ask me first');
+  });
+
+  it('even without a model, another approach changes what the prompt asks for', async () => {
+    const first = await forge({ text: ROUGH, url: 'https://chatgpt.com/', strategy: 'brief' }, settings, undefined, []);
+    const second = await forge({ text: ROUGH, url: 'https://chatgpt.com/', strategy: 'stepwise' }, settings, undefined, []);
+    expect(first.ok && second.ok).toBe(true);
+    if (!first.ok || !second.ok) return;
+    expect(first.prompt).not.toContain('Work in phases');
+    expect(second.prompt).toContain('Work in phases');
+    expect(second.strategy.id).toBe('stepwise');
+  });
+
   it('rejects empty text', async () => {
     const r = await forge({ text: '   ', url: 'https://claude.ai/' }, settings, undefined, []);
     expect(r).toEqual({ ok: false, error: 'There is no text to rewrite.' });

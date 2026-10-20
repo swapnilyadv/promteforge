@@ -1,4 +1,4 @@
-import { convert, type ConvertContext } from '@promptforge/core';
+import { convert, getStrategy, type ConvertContext, type StrategyId } from '@promptforge/core';
 import { createProvider, listOllamaModels, pickOllamaModel, type Provider } from '@promptforge/providers';
 
 export interface ForgeSettings {
@@ -7,7 +7,7 @@ export interface ForgeSettings {
   ollamaUrl: string;
 }
 
-export type ForgeStage = 'checking-intent' | 'rewriting' | 'repairing';
+export type ForgeStage = 'cleaning' | 'checking-intent' | 'rewriting' | 'repairing';
 
 export interface ForgeOutcome {
   prompt: string;
@@ -16,6 +16,10 @@ export interface ForgeOutcome {
   model?: string;
   target: string;
   intent: string;
+  /** The approach used, so "another way" can move on to the next one. */
+  strategy: { id: StrategyId; name: string };
+  /** The message with spelling and grammar fixed, when that changed anything. */
+  cleaned?: string;
   /** Share of the user's key words that made it into the prompt, 0..1. */
   kept: number;
   warnings: string[];
@@ -29,7 +33,7 @@ export async function forgeText(
   text: string,
   context: ConvertContext,
   s: ForgeSettings,
-  hooks: { signal?: AbortSignal; onStage?: (stage: ForgeStage) => void } = {},
+  hooks: { signal?: AbortSignal; onStage?: (stage: ForgeStage) => void; strategy?: StrategyId } = {},
   makeProvider: MakeProvider = ollama,
   installed?: string[],
 ): Promise<ForgeOutcome> {
@@ -45,6 +49,7 @@ export async function forgeText(
     model,
     signal: hooks.signal,
     onStage: hooks.onStage,
+    strategy: hooks.strategy,
   });
   const warnings = [...r.warnings];
   if (!models.length) warnings.unshift('Ollama is not running, so this prompt was built from rules only.');
@@ -54,12 +59,15 @@ export async function forgeText(
     model: r.mode === 'llm' ? model : undefined,
     target: r.target,
     intent: r.intent,
+    strategy: { id: r.strategy, name: getStrategy(r.strategy).name },
+    cleaned: r.cleaned,
     kept: r.validation.keywordRecall,
     warnings,
   };
 }
 
 export const STAGE_TEXT: Record<ForgeStage, string> = {
+  cleaning: 'Fixing spelling and grammar…',
   'checking-intent': 'Reading what you want…',
   rewriting: 'Writing the prompt…',
   repairing: 'Checking that every detail is kept…',

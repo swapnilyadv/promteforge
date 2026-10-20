@@ -1,6 +1,23 @@
-import { createMock, type GenerateRequest } from '@promptforge/providers';
+import { createMock as createRawMock, type GenerateRequest, type MockConfig } from '@promptforge/providers';
 import { describe, expect, it } from 'vitest';
 import { convert } from '../src/index.js';
+
+/**
+ * The fake model also receives the spelling-fix call that runs first; answer it by handing the text back
+ * unchanged, so each test still sees only the calls it is about.
+ */
+function createMock(cfg: Omit<MockConfig, 'type'>) {
+  return createRawMock({
+    type: 'mock',
+    ...cfg,
+    reply: (req: GenerateRequest) =>
+      req.messages[0]!.content.startsWith('You fix spelling')
+        ? req.messages[1]!.content
+        : typeof cfg.reply === 'function'
+          ? cfg.reply(req)
+          : cfg.reply,
+  });
+}
 
 const BAKERY = 'make me a landing page for my bakery, should look nice and load fast. dont use bootstrap';
 
@@ -14,7 +31,7 @@ describe('convert — offline (rules only)', () => {
     expect(r.prompt.match(/landing page for my bakery/g)).toHaveLength(1);
     expect(r.prompt).toContain('<requirements>');
     expect(r.prompt).toContain('<output_format>');
-    expect(r.prompt).toMatch(/Dont use bootstrap/i);
+    expect(r.prompt).toMatch(/Don'?t use bootstrap/i);
     expect(r.validation.ok).toBe(true);
     expect(r.placeholders).toContain('[language / framework and version]');
   });

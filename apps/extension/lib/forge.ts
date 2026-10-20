@@ -1,6 +1,6 @@
-import { convert, detectTarget } from '@promptforge/core';
+import { convert, detectTarget, getStrategy, type StrategyId } from '@promptforge/core';
 import { createProvider, listOllamaModels, pickOllamaModel, type Provider } from '@promptforge/providers';
-import type { ForgeResponse, StatusResponse } from './messages.js';
+import type { ForgeResponse, Stage, StatusResponse } from './messages.js';
 import type { Settings } from './settings.js';
 
 export type MakeProvider = (s: Settings, model: string | undefined) => Provider;
@@ -20,11 +20,11 @@ export interface ForgeHooks {
   signal?: AbortSignal;
   /** Each streamed piece of the prompt, for a live preview. */
   onToken?: (token: string) => void;
-  onStage?: (stage: 'checking-intent' | 'rewriting' | 'repairing') => void;
+  onStage?: (stage: Stage) => void;
 }
 
 export async function forge(
-  req: { text: string; url: string },
+  req: { text: string; url: string; strategy?: StrategyId },
   s: Settings,
   makeProvider: MakeProvider = ollamaProvider,
   installed?: string[],
@@ -38,6 +38,7 @@ export async function forge(
     const result = await convert({
       text,
       context: { url: req.url },
+      strategy: req.strategy,
       style: s.style,
       provider: models.length ? makeProvider(s, model) : undefined,
       model,
@@ -52,6 +53,8 @@ export async function forge(
       prompt: result.prompt,
       target: result.target,
       intent: result.intent,
+      strategy: { id: result.strategy, name: getStrategy(result.strategy).name },
+      cleaned: result.cleaned,
       mode: result.mode,
       kept: result.validation.keywordRecall,
       model: result.mode === 'llm' ? model : undefined,

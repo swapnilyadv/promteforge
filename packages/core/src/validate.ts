@@ -80,6 +80,30 @@ function hasStructure(prompt: string, structure: Structure): boolean {
   }
 }
 
+/** Technologies a small model likes to add on its own. Naming one the user did not is inventing a decision for them. */
+const TECH_TERMS = [
+  'react', 'vue', 'angular', 'svelte', 'next.js', 'nextjs', 'nuxt', 'node.js', 'nodejs', 'express', 'django', 'flask',
+  'fastapi', 'laravel', 'rails', 'spring boot', 'postgresql', 'postgres', 'mysql', 'mongodb', 'sqlite', 'redis',
+  'firebase', 'supabase', 'stripe', 'paypal', 'razorpay', 'aws', 'azure', 'gcp', 'docker', 'kubernetes', 'tailwind',
+  'bootstrap', 'typescript', 'javascript', 'python', 'java', 'golang', 'php', 'graphql', 'jwt', 'oauth',
+];
+
+/** Technologies the prompt names that the user did not. */
+export function inventedTech(original: string, prompt: string, allowed: string[] = []): string[] {
+  const known = `${original} ${allowed.join(' ')}`.toLowerCase();
+  const out = prompt.toLowerCase();
+  const found = new Set<string>();
+  for (const t of TECH_TERMS) {
+    const re = new RegExp(`(^|[^a-z0-9.])${t.replace(/\./g, '\\.')}($|[^a-z0-9])`, 'i');
+    if (re.test(out) && !re.test(known)) found.add(t);
+  }
+  // "postgres" and "postgresql" are one choice.
+  if (found.has('postgresql')) found.delete('postgres');
+  if (found.has('nextjs') && found.has('next.js')) found.delete('nextjs');
+  if (found.has('nodejs') && found.has('node.js')) found.delete('nodejs');
+  return [...found];
+}
+
 export interface ValidateInput {
   prompt: string;
   original: string;
@@ -88,6 +112,8 @@ export interface ValidateInput {
   budget: number;
   /** Skip keyword recall for non-Latin scripts where the model may legitimately transliterate. */
   checkRecall?: boolean;
+  /** Extra words the user's setting makes legitimate (the file's language, for example). */
+  allowedTerms?: string[];
 }
 
 export function validatePrompt(v: ValidateInput): ValidationReport {
@@ -121,6 +147,13 @@ export function validatePrompt(v: ValidateInput): ValidationReport {
       issues.push({ code: 'lost-input', message: 'Pasted code / data / quotes must be copied exactly, but some was changed or left out.' });
       break;
     }
+  }
+  const invented = inventedTech(v.original, prompt, v.allowedTerms);
+  if (invented.length) {
+    issues.push({
+      code: 'invented-details',
+      message: `It names technologies the user never mentioned (${invented.join(', ')}). Remove them and use placeholders like [framework] or [database] instead.`,
+    });
   }
   if (!hasStructure(prompt, v.structure)) {
     issues.push({

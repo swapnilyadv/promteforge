@@ -13,6 +13,10 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock('vscode', () => ({
+  Position: class { constructor(public line: number, public character: number) {} },
+  Range: class { constructor(public start: unknown, public end: unknown) {} },
+  Selection: class { constructor(public anchor: unknown, public active: unknown) {} },
+  EndOfLine: { LF: 1, CRLF: 2 },
   ProgressLocation: { Notification: 15 },
   StatusBarAlignment: { Right: 2 },
   ViewColumn: { Beside: -2 },
@@ -22,7 +26,7 @@ vi.mock('vscode', () => ({
   workspace: {
     getConfiguration: () => ({ get: (k: string, d: unknown) => (k in state.config ? state.config[k] : d), update: async () => {} }),
     asRelativePath: (p: string) => p,
-    openTextDocument: async (o: { content: string }) => ((state.opened = o), o),
+    openTextDocument: async (o: { content: string }) => ((state.opened = o), { ...o, uri: { toString: () => 'untitled:1' }, eol: 1, offsetAt: () => 0, positionAt: (n: number) => ({ offset: n }) }),
   },
   window: {
     get activeTextEditor() {
@@ -35,14 +39,14 @@ vi.mock('vscode', () => ({
     showErrorMessage: async (m: string) => void state.errors.push(m),
     showWarningMessage: async () => {},
     showInputBox: async () => state.inputBox,
-    showTextDocument: async () => {},
+    showTextDocument: async () => ({ selection: null }),
     showQuickPick: async () => undefined,
   },
 }));
 
 vi.mock('@promptforge/providers', async (orig) => ({ ...(await orig<object>()), listOllamaModels: async () => ['qwen2.5:7b'] }));
 
-const outcome = { prompt: '## Goal\nFix the login bug.', mode: 'llm' as const, model: 'qwen2.5:7b', target: 'cursor', intent: 'debugging', kept: 1, warnings: [] };
+const outcome = { prompt: '## Goal\nFix the login bug.', mode: 'llm' as const, model: 'qwen2.5:7b', target: 'cursor', intent: 'debugging', strategy: { id: 'brief', name: 'Clear brief' }, kept: 1, warnings: [] };
 const forgeText = vi.hoisted(() => vi.fn());
 vi.mock('../src/forge.js', async (orig) => ({ ...(await orig<object>()), forgeText }));
 
@@ -50,13 +54,22 @@ import { activate } from '../src/extension.js';
 
 function fakeEditor(sel: string, line: string) {
   const edits: { range: unknown; text: string }[] = [];
-  const selection = { active: { line: 3 }, text: sel };
-  const lineRange = { id: 'line-range' };
+  const selection: { active: { line: number }; text: string; start?: unknown } = { active: { line: 3 }, text: sel, start: { line: 3, character: 0 } };
+  const lineRange = { id: 'line-range', start: { line: 3, character: 0 } };
   return {
     edits,
-    selection,
+    selection: selection as unknown,
     lineRange,
-    document: { languageId: 'typescript', fileName: 'src/a.ts', getText: (s: { text: string }) => s.text, lineAt: () => ({ text: line, range: lineRange }) },
+    document: {
+      uri: { toString: () => 'file:///a.ts' },
+      eol: 1,
+      languageId: 'typescript',
+      fileName: 'src/a.ts',
+      getText: (s: { text: string }) => s.text,
+      lineAt: () => ({ text: line, range: lineRange }),
+      offsetAt: () => 0,
+      positionAt: (o: number) => ({ offset: o }),
+    },
     edit: async (cb: (b: { replace(r: unknown, t: string): void }) => void) => (cb({ replace: (range, text) => edits.push({ range, text }) }), true),
   };
 }
@@ -80,13 +93,29 @@ describe('commands', () => {
   it('replaces the selection in one edit, copies the prompt, and tells the user how to undo', async () => {
     const ed = fakeEditor('fix the login bug', 'whole line text');
     state.editor = ed;
+    const original = ed.selection; // the command re-selects the new prompt afterwards
     await state.commands.get('promptforge.forgeSelection')!();
     expect(forgeText.mock.calls[0]![0]).toBe('fix the login bug');
     expect(forgeText.mock.calls[0]![1]).toMatchObject({ appName: 'Cursor', languageId: 'typescript' });
-    expect(ed.edits).toEqual([{ range: ed.selection, text: outcome.prompt }]);
+    expect(ed.edits).toEqual([{ range: original, text: outcome.prompt }]);
+    expect(state.info[0]).toMatch(/approach: Clear brief/);
+    expect(state.info[0]).toMatch(/for another way/);
     expect(state.clipboard).toBe(outcome.prompt);
     expect(state.info[0]).toMatch(/Rewritten for cursor by qwen2.5:7b/);
     expect(state.info[0]).toMatch(/Undo/);
+  });
+
+  it('pressing Forge again on the prompt it just wrote goes back to the original words and uses the next approach', async () => {
+    const ed = fakeEditor('fix the login bug', 'x');
+    state.editor = ed;
+    await state.commands.get('promptforge.forgeSelection')!();
+    // The user presses the shortcut again with the written prompt selected.
+    ed.selection = { active: { line: 3 }, text: outcome.prompt, start: { line: 3, character: 0 } };
+    forgeText.mockResolvedValue({ ...outcome, prompt: '## Role\nYou are an expert.', strategy: { id: 'expert', name: 'Expert persona' } });
+    await state.commands.get('promptforge.forgeSelection')!();
+    expect(forgeText.mock.calls[1]![0]).toBe('fix the login bug');
+    expect(forgeText.mock.calls[1]![3]).toMatchObject({ strategy: 'expert' });
+    expect(state.info.at(-1)).toMatch(/approach: Expert persona/);
   });
 
   it('uses the current line when nothing is selected', async () => {

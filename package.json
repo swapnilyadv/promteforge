@@ -15,7 +15,8 @@
     "lint": "turbo run typecheck",
     "pf": "node apps/cli/dist/index.js",
     "clean": "rm -rf node_modules packages/*/dist packages/*/node_modules apps/*/dist apps/*/node_modules .turbo",
-    "eval": "pnpm --filter @promptforge/evals eval"
+    "eval": "pnpm --filter @promptforge/evals eval",
+    "ship": "bash scripts/ship.sh"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

@@ -1,6 +1,6 @@
 // Offline support for the installed app: the app shell is cached on first visit, so the converter opens
 // even without a connection. The converter itself runs on the device, so it needs no network once cached.
-const CACHE = 'promptforge-app-v2';
+const CACHE = 'promptforge-app-v3';
 const SHELL = ['./app.html', './try.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {

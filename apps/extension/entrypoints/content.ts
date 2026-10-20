@@ -1,3 +1,4 @@
+import { nextStrategy, type StrategyId } from '@promptforge/core';
 import { browser } from 'wxt/browser';
 import { defineContentScript } from 'wxt/utils/define-content-script';
 import { CHAT_MATCHES, worthForging } from '../lib/sites.js';
@@ -26,7 +27,8 @@ const STYLE = `
   .toast .bar { height: 3px; border-radius: 3px; background: rgba(239,237,242,.12); margin-top: 8px; overflow: hidden; }
   .toast .bar i { display: block; height: 100%; width: 40%; background: #ff9a4d; border-radius: 3px; animation: slide 1.4s ease-in-out infinite; }
   @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
-  .toast button { background: transparent; color: #ff9a4d; font-weight: 600; padding: 4px 6px; }
+  .toast .btns { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; }
+  .toast button { background: transparent; color: #ff9a4d; font-weight: 600; padding: 4px 6px; white-space: nowrap; }
   .toast.err { border-color: rgba(255,120,120,.55); }
   @media (prefers-reduced-motion: reduce) { .pill, .spin, .bar i { transition: none; animation: none; } }
 `;
@@ -103,6 +105,7 @@ async function writeText(el: Editable, text: string): Promise<boolean> {
 const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
 
 const STAGE_TEXT = {
+  cleaning: 'Fixing spelling and grammar…',
   'checking-intent': 'Reading what you want…',
   rewriting: 'Writing the prompt',
   repairing: 'Checking that every detail is kept',
@@ -118,7 +121,7 @@ export default defineContentScript({
     root.innerHTML = `
       <style>${STYLE}</style>
       <div class="wrap">
-        <div class="toast" role="status" aria-live="polite"><div class="msg"></div><button class="act" type="button"></button></div>
+        <div class="toast" role="status" aria-live="polite"><div class="msg"></div><div class="btns"><button class="act" type="button"></button><button class="act act2" type="button"></button></div></div>
         <button class="pill" type="button" title="Rewrite this message (Alt+Shift+F)"><span class="star">✶</span><span class="label">Forge</span><kbd>⌥⇧F</kbd></button>
       </div>`;
     document.documentElement.appendChild(host);
@@ -130,11 +133,15 @@ export default defineContentScript({
     const toast = root.querySelector<HTMLElement>('.toast')!;
     const toastMsg = root.querySelector<HTMLElement>('.msg')!;
     const act = root.querySelector<HTMLButtonElement>('.act')!;
+    const act2 = root.querySelector<HTMLButtonElement>('.act2')!;
 
     let current: Editable | null = null;
     let busy = false;
     let original: { el: Editable; text: string } | null = null;
     let onAct: (() => void) | null = null;
+    let onAct2: (() => void) | null = null;
+    /** The last prompt written into a box: what it came from and which approach made it. */
+    let last: { el: Editable; original: string; prompt: string; strategy: StrategyId } | null = null;
     let hideTimer = 0;
     let toastTimer = 0;
     let frame = 0;
@@ -158,12 +165,16 @@ export default defineContentScript({
       if (!frame) frame = requestAnimationFrame(aim);
     };
 
-    const say = (html: string, opts: { action?: { label: string; run: () => void }; error?: boolean; ms?: number; bar?: boolean } = {}) => {
+    const say = (html: string, opts: { actions?: { label: string; run: () => void }[]; error?: boolean; ms?: number; bar?: boolean } = {}) => {
       toastMsg.innerHTML = html + (opts.bar ? '<div class="bar"><i></i></div>' : '');
       toast.classList.toggle('err', !!opts.error);
-      onAct = opts.action?.run ?? null;
-      act.textContent = opts.action?.label ?? '';
-      act.style.display = opts.action ? '' : 'none';
+      const [a1, a2] = opts.actions ?? [];
+      onAct = a1?.run ?? null;
+      onAct2 = a2?.run ?? null;
+      act.textContent = a1?.label ?? '';
+      act.style.display = a1 ? '' : 'none';
+      act2.textContent = a2?.label ?? '';
+      act2.style.display = a2 ? '' : 'none';
       toast.classList.add('show');
       clearTimeout(toastTimer);
       if (opts.ms !== 0) {
@@ -174,11 +185,13 @@ export default defineContentScript({
       }
       schedule();
     };
-    act.addEventListener('mousedown', (e) => e.preventDefault());
-    act.addEventListener('click', () => onAct?.());
+    for (const [b, f] of [[act, () => onAct?.()], [act2, () => onAct2?.()]] as const) {
+      b.addEventListener('mousedown', (e) => e.preventDefault());
+      b.addEventListener('click', f);
+    }
 
     /** Run one forge over a port. Resolves with the result; calling `cancel` closes the port, which stops the model. */
-    function forgeOverPort(text: string, onProgress: (p: Extract<PortOut, { type: 'progress' }>) => void) {
+    function forgeOverPort(text: string, strategy: StrategyId | undefined, onProgress: (p: Extract<PortOut, { type: 'progress' }>) => void) {
       const port = browser.runtime.connect({ name: 'forge' });
       let cancel = () => port.disconnect();
       const done = new Promise<ForgeResponse>((resolve, reject) => {
@@ -196,21 +209,34 @@ export default defineContentScript({
           }
         });
         port.onDisconnect.addListener(() => reject(new Error('The extension stopped answering. Reload this tab and try again.')));
-        port.postMessage({ type: 'forge', text, url: location.href } satisfies PortIn);
+        port.postMessage({ type: 'forge', text, url: location.href, strategy } satisfies PortIn);
       });
       return { done, cancel: () => cancel() };
+    }
+
+    /** After a prompt is in the box the button offers the next approach instead of starting over. */
+    function updateLabel() {
+      if (busy) return;
+      const another = !!last && !!current && last.el === current && same(readText(current), last.prompt);
+      label.textContent = another ? 'Another way' : 'Forge';
+      pill.title = another ? 'Rewrite your original message with a different approach (Alt+Shift+F)' : 'Rewrite this message (Alt+Shift+F)';
     }
 
     async function run() {
       const el = current;
       if (!el || busy) return;
-      const text = readText(el).trim();
+      const now = readText(el).trim();
+      // Pressing Forge again on a prompt we just wrote means "another way": go back to the user's own words
+      // and build it with the next approach. Anything else is a fresh message.
+      const again = !!last && last.el === el && same(now, last.prompt);
+      const text = again ? last!.original : now;
+      const strategy: StrategyId | undefined = again ? nextStrategy(last!.strategy) : undefined;
       if (!worthForging(text)) return say('Type a little more first: a sentence or two.', { ms: 3500 });
 
       busy = true;
       let cancelled = false;
       const t0 = Date.now();
-      let stage: keyof typeof STAGE_TEXT = 'checking-intent';
+      let stage: keyof typeof STAGE_TEXT = 'cleaning';
       let words = 0;
       const paint = () => {
         const secs = Math.round((Date.now() - t0) / 1000);
@@ -220,9 +246,9 @@ export default defineContentScript({
         label.innerHTML = `<span class="spin">◐</span> Forging ${secs}s`;
         const detail = stage === 'rewriting' && words ? ` · ${words} words` : '';
         const slow = secs > 20 ? '<div class="sub">The model is working on this computer. A longer message takes longer.</div>' : '';
-        say(`<b>${STAGE_TEXT[stage]}</b>${detail}${slow}`, { bar: true, ms: 0, action: { label: 'Cancel', run: () => ((cancelled = true), job.cancel()) } });
+        say(`<b>${STAGE_TEXT[stage]}</b>${detail}${slow}`, { bar: true, ms: 0, actions: [{ label: 'Cancel', run: () => ((cancelled = true), job.cancel()) }] });
       };
-      const job = forgeOverPort(text, (p) => {
+      const job = forgeOverPort(text, strategy, (p) => {
         stage = p.stage;
         words = p.words;
       });
@@ -232,11 +258,11 @@ export default defineContentScript({
         const res = await job.done;
         if (cancelled) return void toast.classList.remove('show');
         if (!res.ok) return say(esc(res.error), { error: true });
-        original = { el, text };
+        original = { el, text: now };
         const wrote = await writeText(el, res.prompt);
         if (!wrote) {
           // The editor refused the replacement: leave the user's text alone and hand them the result.
-          if (el.isConnected) await writeText(el, text);
+          if (el.isConnected) await writeText(el, now);
           let copied = false;
           try {
             await navigator.clipboard.writeText(res.prompt);
@@ -248,18 +274,24 @@ export default defineContentScript({
         }
         const who = res.mode === 'llm' ? `by <b>${esc(res.model ?? 'your model')}</b> on this computer` : 'from <b>rules only</b>';
         const warn = res.warnings[0] ? `<div class="sub">${esc(res.warnings[0])}</div>` : '';
-        say(`Rewritten for <b>${esc(res.target)}</b> ${who} · ${Math.round(res.kept * 100)}% of your details kept${warn}`, {
-          action: {
-            label: 'Undo',
-            run: () => {
-              if (!original?.el.isConnected) return;
-              const back = original;
-              original = null;
-              toast.classList.remove('show');
-              void writeText(back.el, back.text).then(schedule);
+        last = { el, original: text, prompt: res.prompt, strategy: res.strategy.id };
+        const fixed = res.cleaned ? ' · spelling fixed' : '';
+        say(`Rewritten for <b>${esc(res.target)}</b> ${who}<div class="sub">Approach: <b>${esc(res.strategy.name)}</b> · ${Math.round(res.kept * 100)}% of your details kept${fixed}</div>${warn}`, {
+          actions: [
+            { label: 'Another way', run: () => void run() },
+            {
+              label: 'Undo',
+              run: () => {
+                if (!original?.el.isConnected) return;
+                const back = original;
+                original = null;
+                last = null;
+                toast.classList.remove('show');
+                void writeText(back.el, back.text).then(() => (updateLabel(), schedule()));
+              },
             },
-          },
-          ms: 12000,
+          ],
+          ms: 20000,
         });
       } catch (err) {
         if (cancelled) toast.classList.remove('show');
@@ -270,7 +302,7 @@ export default defineContentScript({
         pill.disabled = false;
         pill.classList.remove('busy');
         kbd.style.display = '';
-        label.textContent = 'Forge';
+        updateLabel();
         schedule();
       }
     }
@@ -292,7 +324,7 @@ export default defineContentScript({
         if (!composerFrom(document.activeElement)) wrap.classList.remove('show');
       }, 250);
     });
-    document.addEventListener('input', schedule, true);
+    document.addEventListener('input', () => (updateLabel(), schedule()), true);
     document.addEventListener(
       'keydown',
       (e) => {

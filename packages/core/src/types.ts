@@ -1,3 +1,4 @@
+import type { StrategyId } from './strategies.js';
 import type { Provider } from '@promptforge/providers';
 
 /** Where the prompt will be pasted. Decides the prompt's structure and rules. */
@@ -86,6 +87,8 @@ export interface ConvertOptions {
   askQuestions?: boolean;
   /** Force the task type (e.g. the user picked it in a UI). Skips detection and the model check. */
   intent?: Intent;
+  /** How to build the prompt. Default 'brief'; asking again with the next one gives a different prompt. */
+  strategy?: StrategyId;
   /** LLM backend. Omit for the offline, rules-only converter. */
   provider?: Provider;
   model?: string;
@@ -93,7 +96,7 @@ export interface ConvertOptions {
   /** Called with each streamed token of the final prompt. */
   onToken?: (token: string) => void;
   /** Called when a slower step starts, so a UI can say what it is waiting for. */
-  onStage?: (stage: 'checking-intent' | 'rewriting' | 'repairing') => void;
+  onStage?: (stage: 'cleaning' | 'checking-intent' | 'rewriting' | 'repairing') => void;
   /** Send detected secrets to a cloud provider instead of redacting them. Default false. */
   allowSecretsToCloud?: boolean;
 }
@@ -104,6 +107,7 @@ export interface ValidationIssue {
     | 'preamble'
     | 'meaning-drift'
     | 'dropped-details'
+    | 'invented-details'
     | 'missing-structure'
     | 'too-long'
     | 'template-leftover'
@@ -128,6 +132,10 @@ export interface ConvertResult {
   intentConfidence: number;
   /** Who chose the intent: keyword rules, the model (when the rules were unsure), or the caller. */
   intentSource: 'rules' | 'model' | 'user';
+  /** The approach used to build this prompt. */
+  strategy: StrategyId;
+  /** Your message with spelling and grammar fixed, when that changed anything. */
+  cleaned?: string;
   style: Style;
   language: string;
   /** 'llm' = rewritten by a model; 'offline' = built by rules only. */

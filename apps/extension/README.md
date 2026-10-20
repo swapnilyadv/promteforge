@@ -17,6 +17,10 @@ pnpm --filter @promptforge/extension build      # output: apps/extension/.output
 
 While editing: `pnpm --filter @promptforge/extension dev` opens a Chrome with the extension loaded and reloads it on every change.
 
+## Another way
+
+After a prompt is written, the button changes to **Another way** (also `⌥⇧F` again, or the link in the note). It goes back to *your* original words and builds the prompt with the next of six approaches: clear brief, expert persona, step by step, ask me first, show an example, draft then critique. Spelling and grammar in your message are fixed first. The note names the approach used.
+
 ## How it works
 
 | Part | File | Job |
