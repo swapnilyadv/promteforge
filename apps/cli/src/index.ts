@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { analyze, convert, PROFILES, type Style, type Target } from '@promptforge/core';
+import { analyze, convert, getStrategy, PROFILES, STRATEGIES, type StrategyId, type Style, type Target } from '@promptforge/core';
 import {
   createProvider,
   listOllamaModels,
@@ -22,6 +22,8 @@ Options
   -t, --target <t>         chatgpt | claude | gemini | vscode | cursor | copilot | perplexity | deepseek | grok | image | generic
   -u, --url <url>          Detect target from a page URL instead
   -s, --style <s>          concise | balanced (default) | detailed
+  -a, --approach <a>       brief (default) | expert | stepwise | interview | example | critique, or 1-6
+                           A different way to build the prompt for the same request
   -p, --provider <p>       offline (default) | ollama | lmstudio | openai | anthropic | gemini | openrouter
   -m, --model <name>       Model name for the provider
   -f, --file <path>        Read text from a file
@@ -94,6 +96,7 @@ async function main() {
       target: { type: 'string', short: 't' },
       url: { type: 'string', short: 'u' },
       style: { type: 'string', short: 's', default: 'balanced' },
+      approach: { type: 'string', short: 'a' },
       provider: { type: 'string', short: 'p', default: 'offline' },
       model: { type: 'string', short: 'm' },
       file: { type: 'string', short: 'f' },
@@ -126,6 +129,12 @@ async function main() {
 
   const style = values.style as Style;
   if (!['concise', 'balanced', 'detailed'].includes(style)) throw new Error(`Bad --style "${style}"`);
+  let strategy: StrategyId | undefined;
+  if (values.approach) {
+    const n = Number(values.approach);
+    strategy = (Number.isInteger(n) ? STRATEGIES[n - 1]?.id : STRATEGIES.find((x) => x.id === values.approach)?.id) as StrategyId | undefined;
+    if (!strategy) throw new Error(`Bad --approach "${values.approach}". Use one of: ${STRATEGIES.map((x, i) => `${i + 1}=${x.id}`).join(', ')}`);
+  }
   const target = values.target as Target | undefined;
   if (target && !(target in PROFILES)) throw new Error(`Bad --target "${target}". Run: pf targets`);
   const context = values.url ? { url: values.url } : undefined;
@@ -160,6 +169,7 @@ async function main() {
     target,
     context,
     style,
+    strategy,
     askQuestions,
     provider,
     model: values.model,
@@ -169,7 +179,7 @@ async function main() {
   if (values.json) return void console.log(JSON.stringify(result, null, 2));
 
   if (live) process.stdout.write('\n\n' + c.dim('─'.repeat(60)) + '\n\n');
-  console.log(c.orange(c.bold('Engineered prompt')) + c.dim(`  → ${PROFILES[result.target].label} · ${result.intent} · ${result.style} · ${result.mode} · ${result.ms} ms`));
+  console.log(c.orange(c.bold('Engineered prompt')) + c.dim(`  → ${PROFILES[result.target].label} · ${result.intent} · ${result.style} · ${getStrategy(result.strategy).name} · ${result.mode} · ${result.ms} ms`));
   console.log();
   console.log(result.prompt);
   console.log();
