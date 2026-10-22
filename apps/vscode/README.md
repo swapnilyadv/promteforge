@@ -9,7 +9,7 @@ Cursor and Antigravity are built on VS Code, so the same `.vsix` installs in all
 - **Select text, press `⌥⇧F`** (Alt+Shift+F), or right-click → *Forge Selection into a Prompt*. With nothing selected it uses the current line. The text is replaced in place; one Undo (`⌘Z`) brings the original back.
 - **`⌥⇧W`** or *PromptForge: Write a Prompt…*: type a rough request in the box at the top. The finished prompt opens beside you and is copied to the clipboard, ready to paste into Cursor chat, Copilot chat or any AI.
 - **✶ Forge** in the status bar does the same as `⌥⇧F`.
-- **Press `⌥⇧F` again** with the new prompt still selected (it stays selected) for **another way**: your original words, the next of six approaches (clear brief, expert persona, step by step, ask me first, show an example, draft then critique). Spelling and grammar are fixed first.
+- **Press `⌥⇧F` again** with the new prompt still selected (it stays selected) for **another way**: your original words, the next approach (full project spec, co-founder brief, roadmap in phases, ask me first, expert persona, draft then critique, short and sharp). Spelling and grammar are fixed first.
 - A notification shows the step, a timer and a **Cancel** button while the model works.
 
 The prompt is shaped for the editor you are in: Cursor and VS Code get a coding brief (goal, current vs expected behaviour, deliverable, acceptance criteria).

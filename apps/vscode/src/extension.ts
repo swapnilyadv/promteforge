@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { nextStrategy, type StrategyId } from '@promptforge/core';
+import { nextStrategy, type RequestKind, type StrategyId } from '@promptforge/core';
 import { listOllamaModels } from '@promptforge/providers';
 import { forgeText, pickRange, STAGE_TEXT, type ForgeOutcome, type ForgeSettings } from './forge.js';
 
@@ -60,7 +60,7 @@ async function toClipboard(r: ForgeOutcome): Promise<boolean> {
 }
 
 /** What we last wrote into each document, so pressing Forge on that prompt again means "another way". */
-const lastResult = new Map<string, { original: string; prompt: string; strategy: StrategyId }>();
+const lastResult = new Map<string, { original: string; prompt: string; strategy: StrategyId; kind: RequestKind }>();
 const sameText = (a: string, b: string) => a.replace(/\s+/g, ' ').trim() === b.replace(/\s+/g, ' ').trim();
 
 /** The range covering `text` inserted at `start`, counting the document's own line endings. */
@@ -82,13 +82,13 @@ async function forgeSelection() {
   const key = editor.document.uri.toString();
   const prev = lastResult.get(key);
   const again = !!prev && sameText(pick.text, prev.prompt);
-  const r = await forgeWithProgress(again ? prev!.original : pick.text, editor, again ? nextStrategy(prev!.strategy) : undefined);
+  const r = await forgeWithProgress(again ? prev!.original : pick.text, editor, again ? nextStrategy(prev!.strategy, prev!.kind) : undefined);
   if (!r) return;
   // Replace in one edit, so a single Undo (Cmd/Ctrl+Z) restores what was there before.
   const start = range.start;
   const ok = await editor.edit((b) => b.replace(range, r.prompt));
   if (!ok) return void vscode.window.showErrorMessage('PromptForge: the editor refused the change. The prompt was copied instead.');
-  lastResult.set(key, { original: again ? prev!.original : pick.text, prompt: r.prompt, strategy: r.strategy.id });
+  lastResult.set(key, { original: again ? prev!.original : pick.text, prompt: r.prompt, strategy: r.strategy.id, kind: r.kind });
   // Leave the new prompt selected, so pressing Alt+Shift+F again asks for another way.
   editor.selection = new vscode.Selection(start, insertedRange(editor.document, start, r.prompt).end);
   const copied = await toClipboard(r);
@@ -111,7 +111,7 @@ async function write() {
   const copied = await toClipboard(r);
   const doc = await vscode.workspace.openTextDocument({ content: r.prompt, language: 'markdown' });
   const shown = await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Beside, preserveFocus: false });
-  lastResult.set(doc.uri.toString(), { original: text, prompt: r.prompt, strategy: r.strategy.id });
+  lastResult.set(doc.uri.toString(), { original: text, prompt: r.prompt, strategy: r.strategy.id, kind: r.kind });
   if (shown?.selection) shown.selection = new vscode.Selection(new vscode.Position(0, 0), insertedRange(doc, new vscode.Position(0, 0), r.prompt).end);
   void vscode.window.showInformationMessage(`${summary(r)}.${copied ? ' Copied: paste it into your chat box.' : ''} Press ${process.platform === 'darwin' ? '⌥⇧F' : 'Alt+Shift+F'} for another way.`);
 }

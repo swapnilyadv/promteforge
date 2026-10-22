@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { analyze, convert, getStrategy, PROFILES, STRATEGIES, type StrategyId, type Style, type Target } from '@promptforge/core';
+import { analyze, APP_DEFAULT_STRATEGY, convert, getStrategy, PROFILES, STRATEGIES, type StrategyId, type Style, type Target } from '@promptforge/core';
 import {
   createProvider,
   listOllamaModels,
@@ -22,7 +22,7 @@ Options
   -t, --target <t>         chatgpt | claude | gemini | vscode | cursor | copilot | perplexity | deepseek | grok | image | generic
   -u, --url <url>          Detect target from a page URL instead
   -s, --style <s>          concise | balanced (default) | detailed
-  -a, --approach <a>       brief (default) | expert | stepwise | interview | example | critique, or 1-6
+  -a, --approach <a>       spec (default with a model) | cofounder | stepwise | interview | expert | critique | brief, or 1-7
                            A different way to build the prompt for the same request
   -p, --provider <p>       offline (default) | ollama | lmstudio | openai | anthropic | gemini | openrouter
   -m, --model <name>       Model name for the provider
@@ -169,7 +169,7 @@ async function main() {
     target,
     context,
     style,
-    strategy,
+    strategy: strategy ?? (provider ? APP_DEFAULT_STRATEGY : undefined),
     askQuestions,
     provider,
     model: values.model,

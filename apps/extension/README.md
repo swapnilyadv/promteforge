@@ -19,7 +19,7 @@ While editing: `pnpm --filter @promptforge/extension dev` opens a Chrome with th
 
 ## Another way
 
-After a prompt is written, the button changes to **Another way** (also `⌥⇧F` again, or the link in the note). It goes back to *your* original words and builds the prompt with the next of six approaches: clear brief, expert persona, step by step, ask me first, show an example, draft then critique. Spelling and grammar in your message are fixed first. The note names the approach used.
+After a prompt is written, the button changes to **Another way** (also `⌥⇧F` again, or the link in the note). It goes back to *your* original words and builds the prompt with the next approach: full project spec, co-founder brief, roadmap in phases, ask me first, expert persona, draft then critique, short and sharp. Spelling and grammar in your message are fixed first. The note names the approach used.
 
 ## How it works
 

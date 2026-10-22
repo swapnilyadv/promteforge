@@ -11,5 +11,5 @@ export { buildMetaPrompt, buildRepairMessages, META_PROMPT_VERSION } from './met
 export { renderOffline } from './render-offline.js';
 export { validatePrompt, inventedTech, postprocess, keywordRecall, keywords, missingKeywords } from './validate.js';
 export { wordBudget, STYLE_BUDGET, countWords } from './budget.js';
-export { STRATEGIES, DEFAULT_STRATEGY, getStrategy, nextStrategy, withOfflineApproach, type Strategy, type StrategyId } from './strategies.js';
-export { basicClean, cleanWithModel, acceptCleaned } from './clean.js';
+export { STRATEGIES, APP_DEFAULT_STRATEGY, requestKind, autoStrategy, type RequestKind, DEFAULT_STRATEGY, STYLE_FACTOR, getStrategy, nextStrategy, withOfflineApproach, type Strategy, type StrategyId } from './strategies.js';
+export { basicClean, cleanWithModel, acceptCleaned, stripRequestWrapper } from './clean.js';

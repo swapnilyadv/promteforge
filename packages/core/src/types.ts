@@ -1,4 +1,4 @@
-import type { StrategyId } from './strategies.js';
+import type { RequestKind, StrategyId } from './strategies.js';
 import type { Provider } from '@promptforge/providers';
 
 /** Where the prompt will be pasted. Decides the prompt's structure and rules. */
@@ -87,8 +87,8 @@ export interface ConvertOptions {
   askQuestions?: boolean;
   /** Force the task type (e.g. the user picked it in a UI). Skips detection and the model check. */
   intent?: Intent;
-  /** How to build the prompt. Default 'brief'; asking again with the next one gives a different prompt. */
-  strategy?: StrategyId;
+  /** How to build the prompt. Default 'brief'. 'auto' picks the best fit (full spec for a project to build); asking again with the next one gives a different prompt. */
+  strategy?: StrategyId | 'auto';
   /** LLM backend. Omit for the offline, rules-only converter. */
   provider?: Provider;
   model?: string;
@@ -134,6 +134,8 @@ export interface ConvertResult {
   intentSource: 'rules' | 'model' | 'user';
   /** The approach used to build this prompt. */
   strategy: StrategyId;
+  /** A project to build, or a plain task: decides which approaches "another way" walks through. */
+  kind: RequestKind;
   /** Your message with spelling and grammar fixed, when that changed anything. */
   cleaned?: string;
   style: Style;

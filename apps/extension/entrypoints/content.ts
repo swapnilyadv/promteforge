@@ -1,4 +1,4 @@
-import { nextStrategy, type StrategyId } from '@promptforge/core';
+import { nextStrategy, type RequestKind, type StrategyId } from '@promptforge/core';
 import { browser } from 'wxt/browser';
 import { defineContentScript } from 'wxt/utils/define-content-script';
 import { CHAT_MATCHES, worthForging } from '../lib/sites.js';
@@ -141,7 +141,7 @@ export default defineContentScript({
     let onAct: (() => void) | null = null;
     let onAct2: (() => void) | null = null;
     /** The last prompt written into a box: what it came from and which approach made it. */
-    let last: { el: Editable; original: string; prompt: string; strategy: StrategyId } | null = null;
+    let last: { el: Editable; original: string; prompt: string; strategy: StrategyId; kind: RequestKind } | null = null;
     let hideTimer = 0;
     let toastTimer = 0;
     let frame = 0;
@@ -230,7 +230,7 @@ export default defineContentScript({
       // and build it with the next approach. Anything else is a fresh message.
       const again = !!last && last.el === el && same(now, last.prompt);
       const text = again ? last!.original : now;
-      const strategy: StrategyId | undefined = again ? nextStrategy(last!.strategy) : undefined;
+      const strategy: StrategyId | undefined = again ? nextStrategy(last!.strategy, last!.kind) : undefined;
       if (!worthForging(text)) return say('Type a little more first: a sentence or two.', { ms: 3500 });
 
       busy = true;
@@ -274,7 +274,7 @@ export default defineContentScript({
         }
         const who = res.mode === 'llm' ? `by <b>${esc(res.model ?? 'your model')}</b> on this computer` : 'from <b>rules only</b>';
         const warn = res.warnings[0] ? `<div class="sub">${esc(res.warnings[0])}</div>` : '';
-        last = { el, original: text, prompt: res.prompt, strategy: res.strategy.id };
+        last = { el, original: text, prompt: res.prompt, strategy: res.strategy.id, kind: res.kind };
         const fixed = res.cleaned ? ' · spelling fixed' : '';
         say(`Rewritten for <b>${esc(res.target)}</b> ${who}<div class="sub">Approach: <b>${esc(res.strategy.name)}</b> · ${Math.round(res.kept * 100)}% of your details kept${fixed}</div>${warn}`, {
           actions: [

@@ -1,4 +1,4 @@
-import type { Intent, StrategyId, Target } from '@promptforge/core';
+import type { Intent, RequestKind, StrategyId, Target } from '@promptforge/core';
 
 export type Stage = 'cleaning' | 'checking-intent' | 'rewriting' | 'repairing';
 
@@ -10,6 +10,8 @@ export type ForgeResponse =
       intent: Intent;
       /** The approach used, so "another way" can move to the next one. */
       strategy: { id: StrategyId; name: string };
+      /** A project to build or a plain task: decides which approaches "another way" walks through. */
+      kind: RequestKind;
       /** The user's message with spelling and grammar fixed, if that changed anything. */
       cleaned?: string;
       /** 'llm' = rewritten by the model; 'offline' = built by rules because the model could not be used. */

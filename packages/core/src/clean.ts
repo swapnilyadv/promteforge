@@ -93,3 +93,21 @@ export async function cleanWithModel(
     return undefined;
   }
 }
+
+const BOT = '(?:chat\\s*gpt|chatgpt|gpt|claude|gemini|copilot|cursor|grok|deepseek|perplexity|ai|bro|dude)';
+const PROMPT_WORD = '(?:prompt|promt|promte|pormte|promp|prompte|prmpt)';
+const MAKE_PROMPT = `(?:convert|turn|change|make|rewrite|transform|write)\\s+(?:this|it|that|the\\s+above|the\\s+following)\\s+(?:in\\s?to|to|as)\\s+(?:a\\s+|an\\s+|the\\s+)?(?:good\\s+|better\\s+|detailed\\s+|proper\\s+|professional\\s+|best\\s+)?${PROMPT_WORD}(?:\\s+for\\s+${BOT})?`;
+const GREETING = new RegExp(`^\\s*(?:hey|hi|hello|yo|hii|heyy)\\s+${BOT}\\b[\\s,.:!-]*`, 'i');
+const TRAILING = new RegExp(`[\\s,.;:-]*(?:(?:and|now|then|please|pls|plz|can\\s+you|could\\s+you)\\s+)*${MAKE_PROMPT}[\\s.!?]*$`, 'i');
+const LEADING = new RegExp(`^\\s*(?:please\\s+|pls\\s+)?${MAKE_PROMPT}\\s*[:\\-]\\s*`, 'i');
+
+/**
+ * People type "hey chatgpt, ... convert this into a prompt for chatgpt". That is an instruction to PromptForge,
+ * not part of the request, so it is removed before anything else. Returns the text unchanged if removing it would
+ * leave almost nothing.
+ */
+export function stripRequestWrapper(text: string): string {
+  let t = text.trim().replace(GREETING, '').replace(LEADING, '').replace(TRAILING, '').trim();
+  t = t.replace(/^[,.:;\-\s]+/, '');
+  return wordCount(t) >= 2 ? t : text.trim();
+}

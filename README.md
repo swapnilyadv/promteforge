@@ -71,20 +71,23 @@ Result: `{ prompt, target, intent, mode, changes[], placeholders[], warnings[], 
 
 ## Different approaches, clean wording
 
-PromptForge does not just reformat your words. It first **fixes spelling and grammar** (a short model call; without a model, a tidy-up of common slips), then builds the prompt with one of six **approaches**:
+PromptForge does not just reformat your words. It first **removes the wrapper** ("hey ChatGPT, ... convert this into a prompt"), **fixes spelling and grammar**, then **expands your idea** into the prompt an expert would write, in one of seven approaches:
 
-| # | Approach | What the prompt does |
+| # | Approach | What you get |
 | --- | --- | --- |
-| 1 | Clear brief | Task first, then context, requirements, output format |
-| 2 | Expert persona | A specific senior expert is briefed like a colleague: what great looks like, trade-offs |
-| 3 | Step by step | Four phases: restate, plan, do, check |
-| 4 | Ask me first | The AI asks 4–6 sharp questions before it starts |
-| 5 | Show an example | A short "what good looks like" sample and a mistake to avoid |
+| 1 | Full project spec | Several expert roles, numbered sections (goal, features, admin side, technology options, design, business requirements, phases, rules) and a first task: "ask me the essential questions before you write code" |
+| 2 | Co-founder brief | First person: "Act as my technical co-founder...", labelled bullets of what you want, "I don't want a demo, I want a real product", "work in stages" |
+| 3 | Roadmap in phases | 5-6 phases, each with a deliverable and a check |
+| 4 | Ask me first | The AI interviews you with specific questions before it starts |
+| 5 | Expert persona | A specific senior expert is briefed: what great looks like, trade-offs |
 | 6 | Draft, then critique | First draft, a checklist critique, then an improved final version |
+| 7 | Short and sharp | A compact brief that adds nothing you did not say |
 
-The first Forge uses the clear brief. Press **Forge again** (the button says *Another way*) and you get the next approach, built from your original words each time. The same works in the Chrome extension, the VS Code / Cursor / Antigravity extension, the website and the CLI, because they all use `@promptforge/core` (`packages/core/src/strategies.ts`).
+With a model connected, the first Forge is #1. Press **Forge again** (the button says *Another way*) for #2, #3 and so on, each built from your original words. The rich styles need a model; without one you get the compact brief plus one approach section.
 
-The prompt never invents a decision for you: technologies, names and numbers you did not give become placeholders like `[framework]`.
+The rich styles add what a strong version of the request normally needs (features, phases, rules) and read context clues (a named Indian company suggests rupees, UPI and GST). They do not invent facts about you (budget, deadline, brand name): the prompt tells the AI to ask. Technologies appear only as options to consider. "Based on Flipkart" means inspired by, never integrated with.
+
+The same engine (`packages/core/src/strategies.ts`) serves the Chrome extension, the VS Code / Cursor / Antigravity extension, the website, the phone app and the CLI (`pf convert -a 2 ...`).
 
 ## One change, everywhere
 

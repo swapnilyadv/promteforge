@@ -1,4 +1,4 @@
-import { convert, getStrategy, type ConvertContext, type StrategyId } from '@promptforge/core';
+import { APP_DEFAULT_STRATEGY, convert, getStrategy, type ConvertContext, type RequestKind, type StrategyId } from '@promptforge/core';
 import { createProvider, listOllamaModels, pickOllamaModel, type Provider } from '@promptforge/providers';
 
 export interface ForgeSettings {
@@ -18,6 +18,8 @@ export interface ForgeOutcome {
   intent: string;
   /** The approach used, so "another way" can move on to the next one. */
   strategy: { id: StrategyId; name: string };
+  /** A project to build or a plain task: decides which approaches "another way" walks through. */
+  kind: RequestKind;
   /** The message with spelling and grammar fixed, when that changed anything. */
   cleaned?: string;
   /** Share of the user's key words that made it into the prompt, 0..1. */
@@ -49,7 +51,8 @@ export async function forgeText(
     model,
     signal: hooks.signal,
     onStage: hooks.onStage,
-    strategy: hooks.strategy,
+    // With a model, the first Forge is the rich full spec; without one the compact brief is all rules can do.
+    strategy: hooks.strategy ?? (models.length ? APP_DEFAULT_STRATEGY : undefined),
   });
   const warnings = [...r.warnings];
   if (!models.length) warnings.unshift('Ollama is not running, so this prompt was built from rules only.');
@@ -60,6 +63,7 @@ export async function forgeText(
     target: r.target,
     intent: r.intent,
     strategy: { id: r.strategy, name: getStrategy(r.strategy).name },
+    kind: r.kind,
     cleaned: r.cleaned,
     kept: r.validation.keywordRecall,
     warnings,

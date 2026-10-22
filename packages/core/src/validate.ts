@@ -9,6 +9,7 @@ const STOPWORDS = new Set(
   themselves then there these they this those through under until very want what when where which
   while whom with would your yours yourself yourselves will shall make please thanks thank need like
   really something anything everything kind sort give some only also good nice well want wants
+  based that's thats what's whats using used uses build builds building make makes making made
   generate create draw write build image picture dont don't doesnt doesn't cant can't wont won't`
     .split(/\s+/)
     .filter(Boolean),
@@ -25,10 +26,19 @@ export function keywords(text: string, inputs: string[] = []): string[] {
 }
 
 /** The user's key words that don't appear in the output. */
+const NUMBER_WORDS: Record<string, string> = {
+  '1': 'one', '2': 'two', '3': 'three', '4': 'four', '5': 'five', '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine', '10': 'ten', '11': 'eleven', '12': 'twelve',
+};
+
 export function missingKeywords(original: string, output: string, inputs: string[] = []): string[] {
   // "₹70,000" keeps "70000".
   const out = output.toLowerCase().replace(/(\d),(?=\d)/g, '$1');
-  return keywords(original, inputs).filter((k) => !(out.includes(k) || (k.length > 6 && out.includes(k.slice(0, 6)))));
+  // "3" is kept by "three", and the other way round.
+  const word = (k: string) => NUMBER_WORDS[k] ?? Object.entries(NUMBER_WORDS).find(([, w]) => w === k)?.[0];
+  return keywords(original, inputs).filter((k) => {
+    const alt = word(k);
+    return !(out.includes(k) || (k.length > 6 && out.includes(k.slice(0, 6))) || (alt && new RegExp(`\\b${alt}\\b`).test(out)));
+  });
 }
 
 export function keywordRecall(original: string, output: string, inputs: string[] = []): number {
@@ -114,6 +124,10 @@ export interface ValidateInput {
   checkRecall?: boolean;
   /** Extra words the user's setting makes legitimate (the file's language, for example). */
   allowedTerms?: string[];
+  /** Share of the user's key words that must survive. 1 (default) means all; rich approaches reword more and allow less. */
+  minRecall?: number;
+  /** Flag technologies the user never named. On for the strict brief; off for approaches that recommend options. */
+  checkInventedTech?: boolean;
 }
 
 export function validatePrompt(v: ValidateInput): ValidationReport {
@@ -134,7 +148,7 @@ export function validatePrompt(v: ValidateInput): ValidationReport {
       code: 'meaning-drift',
       message: `It dropped too many of the user's own details (kept ${Math.round(recall * 100)}% of key words). Keep every goal, name and constraint the user gave.`,
     });
-  } else if (recall < 1) {
+  } else if (recall < (v.minRecall ?? 1)) {
     const missing = missingKeywords(v.original, prompt, v.slots.inputs);
     issues.push({
       code: 'dropped-details',
@@ -148,7 +162,7 @@ export function validatePrompt(v: ValidateInput): ValidationReport {
       break;
     }
   }
-  const invented = inventedTech(v.original, prompt, v.allowedTerms);
+  const invented = v.checkInventedTech === false ? [] : inventedTech(v.original, prompt, v.allowedTerms);
   if (invented.length) {
     issues.push({
       code: 'invented-details',

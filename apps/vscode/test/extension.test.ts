@@ -46,7 +46,7 @@ vi.mock('vscode', () => ({
 
 vi.mock('@promptforge/providers', async (orig) => ({ ...(await orig<object>()), listOllamaModels: async () => ['qwen2.5:7b'] }));
 
-const outcome = { prompt: '## Goal\nFix the login bug.', mode: 'llm' as const, model: 'qwen2.5:7b', target: 'cursor', intent: 'debugging', strategy: { id: 'brief', name: 'Clear brief' }, kept: 1, warnings: [] };
+const outcome = { prompt: '## Goal\nFix the login bug.', mode: 'llm' as const, model: 'qwen2.5:7b', target: 'cursor', intent: 'debugging', strategy: { id: 'spec', name: 'Full project spec' }, kind: 'project' as const, kept: 1, warnings: [] };
 const forgeText = vi.hoisted(() => vi.fn());
 vi.mock('../src/forge.js', async (orig) => ({ ...(await orig<object>()), forgeText }));
 
@@ -98,7 +98,7 @@ describe('commands', () => {
     expect(forgeText.mock.calls[0]![0]).toBe('fix the login bug');
     expect(forgeText.mock.calls[0]![1]).toMatchObject({ appName: 'Cursor', languageId: 'typescript' });
     expect(ed.edits).toEqual([{ range: original, text: outcome.prompt }]);
-    expect(state.info[0]).toMatch(/approach: Clear brief/);
+    expect(state.info[0]).toMatch(/approach: Full project spec/);
     expect(state.info[0]).toMatch(/for another way/);
     expect(state.clipboard).toBe(outcome.prompt);
     expect(state.info[0]).toMatch(/Rewritten for cursor by qwen2.5:7b/);
@@ -111,11 +111,11 @@ describe('commands', () => {
     await state.commands.get('promptforge.forgeSelection')!();
     // The user presses the shortcut again with the written prompt selected.
     ed.selection = { active: { line: 3 }, text: outcome.prompt, start: { line: 3, character: 0 } };
-    forgeText.mockResolvedValue({ ...outcome, prompt: '## Role\nYou are an expert.', strategy: { id: 'expert', name: 'Expert persona' } });
+    forgeText.mockResolvedValue({ ...outcome, prompt: '## Role\nYou are an expert.', strategy: { id: 'cofounder', name: 'Co-founder brief' } });
     await state.commands.get('promptforge.forgeSelection')!();
     expect(forgeText.mock.calls[1]![0]).toBe('fix the login bug');
-    expect(forgeText.mock.calls[1]![3]).toMatchObject({ strategy: 'expert' });
-    expect(state.info.at(-1)).toMatch(/approach: Expert persona/);
+    expect(forgeText.mock.calls[1]![3]).toMatchObject({ strategy: 'cofounder' });
+    expect(state.info.at(-1)).toMatch(/approach: Co-founder brief/);
   });
 
   it('uses the current line when nothing is selected', async () => {

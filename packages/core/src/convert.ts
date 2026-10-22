@@ -1,13 +1,13 @@
 import { ProviderError, type ChatMessage, type Provider } from '@promptforge/providers';
 import { wordBudget } from './budget.js';
-import { basicClean, cleanWithModel } from './clean.js';
+import { basicClean, cleanWithModel, stripRequestWrapper } from './clean.js';
 import { classifyIntent } from './intent.js';
 import { confirmIntent } from './intent-confirm.js';
 import { buildMetaPrompt, buildRepairMessages } from './meta-prompt.js';
 import { normalize, restoreSecrets } from './normalize.js';
 import { getProfile, type ModelProfile } from './profiles/index.js';
 import { renderOffline } from './render-offline.js';
-import { getStrategy, withOfflineApproach } from './strategies.js';
+import { autoStrategy, getStrategy, requestKind, STYLE_FACTOR, withOfflineApproach } from './strategies.js';
 import { extractSlots, missingSlots } from './slots.js';
 import { detectTarget } from './target.js';
 import { getTemplate, type IntentTemplate } from './templates.js';
@@ -135,23 +135,21 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
 
   // Fix spelling and grammar first, so the rest of the pipeline (and the prompt) works from clean text.
   // With a model it is a short correction call; without one, a light rules-based tidy.
-  let working = opts.text;
-  let cleaned: string | undefined;
+  // "hey chatgpt ... convert this into a prompt" is addressed to PromptForge, not part of the request.
+  const unwrapped = stripRequestWrapper(opts.text);
+  let working = unwrapped;
   if (opts.provider) {
     const sendSecrets = opts.provider.isLocal || opts.allowSecretsToCloud;
-    const redacted = normalize(opts.text);
+    const redacted = normalize(unwrapped);
     if (sendSecrets || redacted.redactions.length === 0) {
       opts.onStage?.('cleaning');
-      cleaned = await cleanWithModel(opts.provider, opts.text, { model: opts.model, signal: opts.signal });
+      const fixed = await cleanWithModel(opts.provider, unwrapped, { model: opts.model, signal: opts.signal });
+      if (fixed) working = fixed;
     }
   } else {
-    const t = basicClean(opts.text);
-    if (t !== opts.text.trim()) cleaned = t;
+    working = basicClean(unwrapped);
   }
-  if (cleaned && cleaned.trim() !== opts.text.trim()) working = cleaned;
-  else cleaned = undefined;
-  const strategy = getStrategy(opts.strategy);
-
+  const cleaned = working.trim() !== opts.text.trim() ? working : undefined;
   let a = analyze({ ...opts, text: working });
   let intentSource: ConvertResult['intentSource'] = opts.intent ? 'user' : 'rules';
   // Keyword rules latch onto surface words ("discount code" → coding). When they are unsure and a
@@ -166,11 +164,16 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
       intentSource = 'model';
     }
   }
+  const kind = requestKind(working, a.intent);
+  const strategy = getStrategy(opts.strategy === 'auto' ? autoStrategy(kind, a.intent) : opts.strategy);
   const askQuestions = opts.askQuestions ?? true;
   const warnings: string[] = [];
   const { normalized } = a;
   // Approaches other than the plain brief add a section or two, so they get a little more room.
-  const budget = Math.round(a.budget * strategy.extraWords);
+  const richMode = strategy.rich && a.profile.structure !== 'image';
+  // A plain task (an email, a question) gets a lighter prompt than a project to build.
+  const kindFactor = kind === 'task' ? 0.65 : 1;
+  const budget = richMode ? Math.round((strategy.wordBudget ?? a.budget) * STYLE_FACTOR[a.style] * kindFactor) : Math.round(a.budget * strategy.extraWords);
   const checkRecall = normalized.language === 'en';
 
   const offline = renderOffline({
@@ -188,9 +191,12 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
       prompt,
       original: normalized.text,
       slots: a.slots,
-      structure: a.profile.structure,
+      // Prose approaches have labelled bullets, not headed sections.
+      structure: richMode && strategy.prose ? 'task-first' : a.profile.structure,
       budget,
       checkRecall,
+      checkInventedTech: !richMode,
+      minRecall: richMode ? 0.6 : 1,
       allowedTerms: [opts.context?.languageId ?? '', ...(opts.context?.workspaceFiles ?? [])],
     });
 
@@ -244,11 +250,14 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
       let draft = postprocess(await runModel(provider, messages, opts, maxTokens, true, strategy.temperature));
       let report = validateFor(draft);
 
-      if (!report.ok) {
+      // A repair is a second full generation. For the rich approaches (a few hundred words) it is only worth it
+      // for real breakage; a missed filler word or a slightly long draft is not worth another minute.
+      const mustFix = richMode ? report.issues.filter((i) => ['empty', 'meaning-drift', 'lost-input', 'template-leftover', 'preamble'].includes(i.code)) : report.issues;
+      if (mustFix.length) {
         repairs = 1;
         opts.onStage?.('repairing');
         const fixed = postprocess(
-          await runModel(provider, buildRepairMessages(messages, draft, report.issues), opts, maxTokens, false, strategy.temperature),
+          await runModel(provider, buildRepairMessages(messages, draft, mustFix), opts, maxTokens, false, strategy.temperature),
         );
         const fixedReport = validateFor(fixed);
         if (fixedReport.issues.length < report.issues.length || fixedReport.ok) {
@@ -295,6 +304,7 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
     intentConfidence: a.intentConfidence,
     intentSource,
     strategy: strategy.id,
+    kind,
     cleaned,
     style: a.style,
     language: normalized.language,

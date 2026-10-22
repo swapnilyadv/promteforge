@@ -1,4 +1,4 @@
-import { convert, getStrategy, nextStrategy, PROFILES, type StrategyId, type Target } from '@promptforge/core';
+import { convert, getStrategy, nextStrategy, PROFILES, type RequestKind, type StrategyId, type Target } from '@promptforge/core';
 
 /**
  * The "write here, get a prompt" box on the landing page. Runs entirely in the visitor's browser with
@@ -24,6 +24,7 @@ let last = '';
 /** The message the current prompt came from, and the approach used: "Another way" starts again from these. */
 let source = '';
 let strategy: StrategyId = 'brief';
+let kind: RequestKind = 'task';
 
 function run(next = false) {
   const text = (next ? source : input.value).trim();
@@ -31,7 +32,7 @@ function run(next = false) {
     meta.textContent = 'Type something first, even a few rough words.';
     return;
   }
-  if (next) strategy = nextStrategy(strategy);
+  if (next) strategy = nextStrategy(strategy, kind);
   else {
     source = text;
     strategy = 'brief';
@@ -40,9 +41,10 @@ function run(next = false) {
   // convert() is async when a provider is passed; without one the result is synchronous.
   void Promise.resolve(r).then((res) => {
     last = res.prompt;
+    kind = res.kind;
     out.textContent = res.prompt;
     const kept = Math.round(res.validation.keywordRecall * 100);
-    meta.textContent = `Rules-based, on this device · ${getStrategy(res.strategy).name} · ${res.intent} · ${kept}% of your key words kept${res.cleaned ? ' · spelling fixed' : ''}`;
+    meta.textContent = `Rules-based, on this device · ${getStrategy(res.strategy).name} · ${res.intent} · ${kept}% of your key words kept${res.cleaned ? ' · spelling fixed' : ''}${res.strategy === 'brief' ? '' : ' · the extension makes this richer with a model'}`;
     out.classList.remove('empty');
     copy.disabled = false;
     if (another) another.disabled = false;

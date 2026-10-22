@@ -4,7 +4,7 @@ import type { IntentTemplate } from './templates.js';
 import type { Strategy } from './strategies.js';
 import type { ConvertContext, Intent, Slots, Style, ValidationIssue } from './types.js';
 
-export const META_PROMPT_VERSION = 3;
+export const META_PROMPT_VERSION = 4;
 
 /** Short budgets can't hold every section: small models follow the section list over the word limit. */
 function maxSections(budget: number, available: number): number {
@@ -32,7 +32,41 @@ export interface MetaPromptInput {
   strategy: Strategy;
 }
 
+/** Rich approaches expand a seed idea into the prompt an expert would write; `brief` stays strict and compact. */
+function isRich(m: MetaPromptInput): boolean {
+  return m.strategy.rich && m.intent !== 'image';
+}
+
+function richSystemPrompt(m: MetaPromptInput): string {
+  const lang = LANG_NAMES[m.language] ?? 'the same language as the user';
+  const format =
+    m.strategy.prose
+      ? 'Follow the approach below: flowing first-person sentences plus one bulleted list. No numbered section headings.'
+      : m.profile.structure === 'xml'
+        ? 'Use XML tags for the sections (for example <goal>...</goal>), in the order given below.'
+        : 'Use Markdown: write each part name below as a heading on its own line (## Name), bullets with "*", in the order given below.';
+  return [
+    `You are PromptForge, a world-class prompt engineer. You turn a user's rough idea into the prompt an expert would write for ${m.profile.label}: complete, specific and ready to paste.`,
+    '',
+    'RULES',
+    "1. Expand the idea. Add the sections, features, requirements, constraints and steps that a strong version of this request normally needs, using good judgment about what is missing. The user's short message is a seed, not the whole prompt.",
+    "2. Keep everything the user said (goals, names, brands, places, numbers, preferences) and let it shape the whole prompt. Read the clues: a named company, city, currency or language tells you the market and context, so tailor to it (for example a mention of an Indian company suggests prices in rupees, UPI payments and GST).",
+    "3. \"Like\", \"based on\" or \"inspired by\" a named company or product means taking inspiration from how it works. Never ask for that company's APIs, data, branding, accounts or integration, and say that the result should have its own identity.",
+    "4. Never invent facts about the user personally (their budget, deadline, team, brand name, experience). Where those matter, tell the AI to ask the user for them.",
+    '5. Suggest technologies, tools and methods only as options to consider, or as something for the AI to recommend. Never present them as fixed requirements.',
+    '6. Fix every spelling and grammar mistake and write clean, natural, confident English. Remove anything addressed to a chatbot, such as "hey ChatGPT" or "convert this into a prompt": that is an instruction to you, not part of the request.',
+    '7. Write the prompt to the AI, in the first person as the user ("I want...", "Help me..."). It is a prompt, not an answer: do not perform the task.',
+    `8. Write in ${lang} (keep code and technical terms as they are).`,
+    '9. Output ONLY the final prompt. No preface ("Here is..."), no explanations, no closing remarks, no surrounding code fence.',
+    `10. Length: about ${m.budget} words.`,
+    '',
+    `TARGET: ${m.profile.label}`,
+    `Formatting: ${format}`,
+  ].join('\n');
+}
+
 function systemPrompt(m: MetaPromptInput): string {
+  if (isRich(m)) return richSystemPrompt(m);
   const lang = LANG_NAMES[m.language] ?? 'the same language as the user';
   return [
     `You are PromptForge, a world-class prompt engineer. You rewrite a user's rough request into the best possible prompt for ${m.profile.label}.`,
@@ -53,7 +87,43 @@ function systemPrompt(m: MetaPromptInput): string {
   ].join('\n');
 }
 
+function richUserPrompt(m: MetaPromptInput): string {
+  const lines: string[] = [];
+  lines.push(`Task type: ${m.intent}.`);
+  lines.push(`APPROACH: ${m.strategy.name}. ${m.strategy.instruction}`);
+  lines.push('', 'Write these parts, in this order:');
+  for (const part of m.strategy.skeleton ?? []) lines.push(`- ${part.key}: ${part.guidance}`);
+  if (m.strategy.exemplar) {
+    lines.push(
+      '',
+      'EXAMPLE of this style, written for a completely different request. Copy its style, structure and level of detail, never its topic or its content:',
+      '<example>',
+      m.strategy.exemplar,
+      '</example>',
+    );
+  }
+  const known: string[] = [];
+  if (m.slots.audience) known.push(`audience = ${m.slots.audience}`);
+  if (m.slots.tone) known.push(`tone = ${m.slots.tone}`);
+  if (m.slots.length) known.push(`length = ${m.slots.length}`);
+  if (m.slots.format) known.push(`format = ${m.slots.format}`);
+  if (m.slots.tech.length) known.push(`tech the user named = ${m.slots.tech.join(', ')}`);
+  if (m.context?.languageId) known.push(`editor language = ${m.context.languageId}`);
+  if (m.context?.fileName) known.push(`current file = ${m.context.fileName}`);
+  if (known.length) lines.push('', `Detected from the request: ${known.join('; ')}.`);
+  lines.push(
+    '',
+    '<user_request>',
+    m.text,
+    '</user_request>',
+    '',
+    `Now write the prompt for ${m.profile.label}, in this approach. About ${m.budget} words (not counting pasted code or data). Use every detail the user gave and add what a strong version needs.`,
+  );
+  return lines.join('\n');
+}
+
 function userPrompt(m: MetaPromptInput): string {
+  if (isRich(m)) return richUserPrompt(m);
   const t = m.template;
   const lines: string[] = [];
   lines.push(`Task type: ${m.intent}${t.role ? ` — the AI should act as ${t.role}` : ''}.`);

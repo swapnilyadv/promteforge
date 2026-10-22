@@ -1,4 +1,4 @@
-import { convert, detectTarget, getStrategy, type StrategyId } from '@promptforge/core';
+import { APP_DEFAULT_STRATEGY, convert, detectTarget, getStrategy, type StrategyId } from '@promptforge/core';
 import { createProvider, listOllamaModels, pickOllamaModel, type Provider } from '@promptforge/providers';
 import type { ForgeResponse, Stage, StatusResponse } from './messages.js';
 import type { Settings } from './settings.js';
@@ -38,7 +38,8 @@ export async function forge(
     const result = await convert({
       text,
       context: { url: req.url },
-      strategy: req.strategy,
+      // With a model, the first Forge is the rich full spec; without one the compact brief is all rules can do.
+      strategy: req.strategy ?? (models.length ? APP_DEFAULT_STRATEGY : undefined),
       style: s.style,
       provider: models.length ? makeProvider(s, model) : undefined,
       model,
@@ -54,6 +55,7 @@ export async function forge(
       target: result.target,
       intent: result.intent,
       strategy: { id: result.strategy, name: getStrategy(result.strategy).name },
+      kind: result.kind,
       cleaned: result.cleaned,
       mode: result.mode,
       kept: result.validation.keywordRecall,

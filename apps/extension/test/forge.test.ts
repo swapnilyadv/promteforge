@@ -60,7 +60,7 @@ describe('forge', () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.strategy).toEqual({ id: 'interview', name: 'Ask me first' });
-    expect(sawApproach).toContain('APPROACH — Ask me first');
+    expect(sawApproach).toContain('APPROACH: Ask me first');
   });
 
   it('even without a model, another approach changes what the prompt asks for', async () => {
@@ -68,8 +68,8 @@ describe('forge', () => {
     const second = await forge({ text: ROUGH, url: 'https://chatgpt.com/', strategy: 'stepwise' }, settings, undefined, []);
     expect(first.ok && second.ok).toBe(true);
     if (!first.ok || !second.ok) return;
-    expect(first.prompt).not.toContain('Work in phases');
-    expect(second.prompt).toContain('Work in phases');
+    expect(first.prompt).not.toContain('Finish each phase');
+    expect(second.prompt).toContain('Finish each phase');
     expect(second.strategy.id).toBe('stepwise');
   });
 
