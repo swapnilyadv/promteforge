@@ -11,3 +11,6 @@ coverage/
 .wxt/
 out/
 *.vsix
+
+launch-video/out/
+launch-video/node_modules/

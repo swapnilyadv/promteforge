@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>PromptForge launch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@300..900&family=Instrument+Sans:wght@400..700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Same tokens as the product and the website. */
+:root {
+  --bg: #0c0c0e; --bg-2: #141417; --panel: #18181c; --fg: #efedf2; --muted: #8f8c96; --line: rgba(239,237,242,.12); --heat: #ff9a4d;
+  --display: "Unbounded", "Arial Black", system-ui, sans-serif; --body: "Instrument Sans", system-ui, sans-serif; --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@property --spin { syntax: "<angle>"; inherits: true; initial-value: 0deg; }
+* { box-sizing: border-box; margin: 0; }
+html, body { width: 100%; height: 100%; background: #050507; overflow: hidden; }
+body { display: grid; place-items: center; font-family: var(--body); color: var(--fg); }
+/* The stage is always 1080x1920 and is scaled to fit the window when previewing. */
+#fit { position: relative; width: 1080px; height: 1920px; transform-origin: center; }
+#stage { position: absolute; inset: 0; width: 1080px; height: 1920px; background: var(--bg); overflow: hidden; -webkit-font-smoothing: antialiased; }
+#cam { position: absolute; inset: 0; transform-origin: 50% 50%; }
+canvas#field { position: absolute; inset: 0; }
+.orb { position: absolute; width: 1100px; height: 1100px; border-radius: 50%; background: radial-gradient(circle, rgba(239,237,242,.9), rgba(255,154,77,.38) 42%, transparent 70%); filter: blur(120px); opacity: .13; }
+#vig { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 45%, transparent 40%, rgba(0,0,0,.6) 100%); pointer-events: none; }
+.abs { position: absolute; }
+.scene { position: absolute; inset: 0; opacity: 0; }
+.mono { font-family: var(--mono); }
+.eyebrow { font-family: var(--mono); font-size: 28px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+.logo-sq { width: 34px; height: 34px; border-radius: 10px; background: conic-gradient(from var(--spin, 0deg), #f4f2f7, #6d6a74, #e2dfe8, #3f3d45, #f4f2f7); display: inline-block; }
+#brand { position: absolute; left: 64px; top: 112px; display: flex; align-items: center; gap: 16px; font-family: var(--display); font-weight: 800; font-size: 32px; letter-spacing: -.03em; }
+.display { font-family: var(--display); letter-spacing: -.03em; line-height: .98; }
+
+/* the composer card, shared by scenes A and B */
+#card { position: absolute; left: 48px; top: 540px; width: 984px; padding: 40px 44px 44px; background: var(--panel); border: 1.5px solid var(--line); border-radius: 40px; box-shadow: 0 60px 160px -40px rgba(0,0,0,.9); transform-origin: 50% 50%; }
+#card .bar { display: flex; gap: 12px; align-items: center; margin-bottom: 28px; }
+#card .bar i { width: 18px; height: 18px; border-radius: 50%; background: #2c2b31; display: block; }
+#card .bar span { margin-left: 10px; font-family: var(--mono); font-size: 24px; color: var(--muted); letter-spacing: .08em; }
+#typed { font-family: var(--mono); font-size: 44px; line-height: 1.5; min-height: 280px; color: #f3f1f6; word-break: break-word; }
+#typed .caret { display: inline-block; width: 5px; height: 1.05em; background: var(--heat); vertical-align: -.15em; margin-left: 3px; }
+u.typo { text-decoration: underline wavy #ff5d5d; text-decoration-thickness: 4px; text-underline-offset: 8px; }
+s.wrap { text-decoration: line-through; text-decoration-thickness: 4px; color: #8f8c96; }
+mark.fix { background: rgba(111,220,140,.28); color: #bff3cd; border-radius: 8px; padding: 0 6px; }
+
+/* Forge pill, same look as the extension */
+#pill { position: absolute; display: inline-flex; align-items: center; gap: 14px; padding: 18px 30px; border-radius: 999px; background: #efedf2; color: #0c0c0e; font-family: var(--body); font-weight: 700; font-size: 38px; box-shadow: 0 10px 40px rgba(0,0,0,.55), 0 0 0 2px rgba(12,12,14,.08); white-space: nowrap; transform-origin: 100% 50%; }
+#pill .star { color: #ff7a1f; font-size: 40px; }
+#pill kbd { font: 600 26px var(--mono); opacity: .5; }
+#pill.busy { background: #ffd9b8; }
+#toast { position: absolute; width: 500px; padding: 22px 26px; border-radius: 28px; background: #18181c; border: 1.5px solid rgba(239,237,242,.16); box-shadow: 0 20px 80px rgba(0,0,0,.6); font-size: 28px; line-height: 1.35; transform-origin: 100% 100%; }
+#toast b { font-weight: 700; } #toast .sub { color: #9a97a3; font-size: 23px; margin-top: 8px; }
+#toast .bar2 { height: 7px; border-radius: 7px; background: rgba(239,237,242,.12); margin-top: 18px; overflow: hidden; } #toast .bar2 i { display: block; height: 100%; background: var(--heat); border-radius: 7px; }
+#toast .btns { display: flex; gap: 28px; margin-top: 12px; font-weight: 700; color: var(--heat); font-size: 26px; }
+#cursor { position: absolute; left: 0; top: 0; width: 70px; height: 70px; opacity: 0; filter: drop-shadow(0 6px 10px rgba(0,0,0,.6)); }
+#ripple { position: absolute; width: 40px; height: 40px; border-radius: 50%; border: 5px solid var(--heat); opacity: 0; }
+
+/* the result card (scene C and D) */
+#result { position: absolute; left: 48px; top: 400px; width: 984px; height: 1230px; background: var(--panel); border: 1.5px solid var(--line); border-radius: 44px; overflow: hidden; box-shadow: 0 60px 160px -40px rgba(0,0,0,.9); transform-origin: 50% 50%; }
+#result .fade { position: absolute; left: 0; right: 0; height: 120px; z-index: 3; pointer-events: none; }
+#result .fade.t { top: 0; background: linear-gradient(var(--panel), transparent); } #result .fade.b { bottom: 0; background: linear-gradient(transparent, var(--panel)); }
+#scroll { position: absolute; left: 0; right: 0; top: 0; padding: 64px 56px 200px; font-family: var(--mono); font-size: 33px; line-height: 1.5; color: #dedbe4; }
+#scroll .ln { margin-bottom: 10px; opacity: 0; } #scroll .h { color: var(--fg); font-weight: 700; margin-top: 34px; } #scroll .ttl { font-family: var(--display); font-size: 46px; line-height: 1.12; letter-spacing: -.02em; color: #fff; font-weight: 700; }
+#scroll .li { padding-left: 34px; position: relative; } #scroll .li::before { content: "•"; position: absolute; left: 6px; color: var(--heat); }
+.hl { border-radius: 10px; transition: none; }
+#layerB { position: absolute; inset: 0; padding: 64px 56px; font-family: var(--mono); font-size: 34px; line-height: 1.5; color: #dedbe4; opacity: 0; }
+#layerB .k { color: var(--heat); font-weight: 700; } #layerB .h { color: #fff; font-weight: 700; margin: 26px 0 8px; } #layerB p { margin-bottom: 16px; }
+#hdr { position: absolute; left: 64px; top: 196px; }
+#words { font-family: var(--display); font-weight: 800; font-size: 62px; letter-spacing: -.03em; color: var(--heat); line-height: 1; }
+.chip { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--bg-2); font-family: var(--mono); font-size: 22px; color: var(--fg); white-space: nowrap; }
+.chip.ok::before { content: "✓"; color: #6fdc8c; font-weight: 700; }
+#callout { position: absolute; left: 90px; right: 90px; top: 1440px; padding: 26px 34px; border-radius: 30px; background: #2a1d13; border: 2px solid var(--heat); font-size: 36px; line-height: 1.3; box-shadow: 0 20px 80px rgba(255,154,77,.25); }
+#callout b { color: var(--heat); }
+#apTag { position: absolute; left: 64px; top: 190px; width: 440px; font-family: var(--display); font-weight: 800; font-size: 40px; line-height: 1.04; letter-spacing: -.02em; transform-origin: 0 50%; }
+#apTag small { display: block; font-family: var(--mono); font-weight: 400; font-size: 26px; letter-spacing: .12em; color: var(--muted); text-transform: uppercase; margin-bottom: 12px; }
+#seven { position: absolute; left: 0; right: 0; top: 1500px; text-align: center; }
+
+/* devices */
+.dev { position: absolute; left: 90px; width: 900px; top: 470px; opacity: 0; }
+.win { background: #1a1a1e; border: 1.5px solid var(--line); border-radius: 36px; overflow: hidden; box-shadow: 0 50px 140px -30px rgba(0,0,0,.95); }
+.win .tb { height: 74px; display: flex; align-items: center; gap: 12px; padding: 0 26px; background: #202025; border-bottom: 1.5px solid var(--line); }
+.win .tb i { width: 18px; height: 18px; border-radius: 50%; background: #3a3a40; display: block; }
+.win .url { margin-left: 20px; flex: 1; height: 44px; border-radius: 22px; background: #131316; font: 400 24px/44px var(--mono); color: var(--muted); padding: 0 24px; }
+.dlabel { margin-top: 40px; text-align: center; font-family: var(--display); font-weight: 700; font-size: 46px; letter-spacing: -.02em; }
+.dsub { margin-top: 12px; text-align: center; font: 400 28px var(--mono); color: var(--muted); }
+.phone { width: 470px; margin: 0 auto; height: 800px; background: #0c0c0e; border: 10px solid #2a2a30; border-radius: 76px; overflow: hidden; box-shadow: 0 50px 140px -30px rgba(0,0,0,.95); padding: 56px 28px; position: relative; }
+.phone .notch { position: absolute; top: 14px; left: 50%; width: 130px; height: 34px; border-radius: 20px; background: #000; transform: translateX(-50%); }
+#devTitle { position: absolute; left: 0; right: 0; top: 250px; text-align: center; font-family: var(--display); font-weight: 800; font-size: 76px; letter-spacing: -.03em; line-height: 1.02; }
+
+/* CTA */
+#cta .big { position: absolute; left: 0; right: 0; text-align: center; }
+.holo { position: relative; display: inline-flex; padding: 36px 70px; border-radius: 999px; background: var(--bg-2); font-family: var(--body); font-weight: 700; font-size: 58px; isolation: isolate; }
+.holo::before { content: ""; position: absolute; inset: -4px; border-radius: inherit; background: conic-gradient(from var(--spin, 0deg), #f4f2f7, #6d6a74, #e2dfe8, #3f3d45, #f4f2f7); z-index: -2; }
+.holo::after { content: ""; position: absolute; inset: 2px; border-radius: inherit; background: var(--bg-2); z-index: -1; }
+</style>
+</head>
+<body>
+<div id="fit"><div id="stage"><div id="cam">
+  <div class="orb" id="orb1" style="left:-300px; top:200px"></div>
+  <div class="orb" id="orb2" style="left:380px; top:1000px"></div>
+  <canvas id="field" width="1080" height="1920"></canvas>
+  <div id="vig"></div>
+  <div id="brand"><span class="logo-sq" id="brandLogo"></span><span>PromptForge</span></div>
+
+  <!-- A + B : the messy message, then Forge -->
+  <div class="scene" id="sA"><div class="abs display" id="hook" style="left:64px; right:40px; top:700px; font-size:136px; font-weight:800; line-height:.98">Stop writing<br><span style="color:var(--heat)">bad prompts.</span></div><div class="abs eyebrow" id="aLabel" style="left:64px; top:452px">You write prompts like this</div>
+    <div class="abs display" id="aHead" style="left:64px; top:1230px; font-size:98px; font-weight:800"><div class="al" style="overflow:hidden"><div>Your idea</div></div><div class="al" style="overflow:hidden"><div>deserves a</div></div><div class="al" style="overflow:hidden"><div style="color:var(--heat)">better prompt.</div></div></div></div>
+  <div class="scene" id="sB"><div class="abs display" id="bTitle" style="left:64px; top:330px; font-size:104px; font-weight:800"><div class="bl" style="overflow:hidden"><div>So we built</div></div><div class="bl" style="overflow:hidden"><div style="color:var(--heat)">PromptForge.</div></div></div></div>
+  <div id="card"><div class="bar"><i></i><i></i><i></i><span>New chat</span></div><div id="typed"></div></div>
+
+  <!-- C + D : the result and "another way" -->
+  <div class="scene" id="sC">
+    <div id="hdr"><div id="words">0 words</div><div class="mono" style="font-size:25px; color:var(--muted); margin-top:8px" id="wordsFrom">from 14 words you typed</div></div>
+    <div class="abs" id="chips" style="left:64px; top:318px; display:flex; flex-direction:row; gap:12px; align-items:center"><span class="chip ok" id="chip1">spelling fixed</span><span class="chip ok" id="chip2">“hey chatgpt…” removed</span></div>
+    <div id="apTag"><small id="apNum">Approach 1 of 7</small><span id="apName">Full project spec</span></div>
+    <div id="result"><div class="fade t"></div><div class="fade b"></div><div id="scroll"></div><div id="layerB"></div></div>
+    <div id="callout"><b>₹ UPI · GST</b> added automatically, inferred from “Flipkart”.</div>
+    <div id="seven"><div class="eyebrow" style="margin-bottom:22px">One idea</div><div class="display" style="font-size:112px; font-weight:800">7 ways<br>to say it.</div></div>
+  </div>
+
+  <!-- E : everywhere -->
+  <div class="scene" id="sE">
+    <div id="devTitle">Works where<br><span style="color:var(--heat)">you already write.</span></div>
+    <div class="dev" id="dev1">
+      <div class="win"><div class="tb"><i></i><i></i><i></i><div class="url">chatgpt.com</div></div>
+        <div style="padding:46px 40px 40px; height:600px; position:relative">
+          <div class="display" style="font-size:44px; font-weight:600; color:#8f8c96; text-align:center; margin-top:60px">What’s on your mind today?</div>
+          <div class="abs" style="left:40px; right:40px; top:310px; background:#2b2b31; border:1.5px solid var(--line); border-radius:36px; padding:34px 36px; font:400 34px/1.45 var(--mono); color:#f3f1f6">i want a ecommerce websit for sellin shoes online</div>
+          <div class="abs" id="miniPill" style="right:64px; top:278px; display:inline-flex; gap:12px; align-items:center; padding:14px 26px; border-radius:999px; background:#efedf2; color:#0c0c0e; font:700 30px var(--body)"><span style="color:#ff7a1f">✶</span>Another way</div>
+          <div class="abs" style="left:40px; right:40px; bottom:36px; padding:22px 26px; border-radius:24px; background:#18181c; border:1.5px solid rgba(239,237,242,.16); font-size:28px; line-height:1.35">Rewritten for <b>ChatGPT</b><div style="color:#9a97a3; font-size:24px; margin-top:6px">Approach: <b style="color:#fff">Full project spec</b> · spelling fixed</div></div>
+        </div></div>
+      <div class="dlabel">Chrome · Brave · Edge</div><div class="dsub">claude.ai · chatgpt.com · gemini</div></div>
+    <div class="dev" id="dev2">
+      <div class="win" style="background:#17171a"><div class="tb"><i></i><i></i><i></i><div class="url" style="text-align:center; margin-left:60px">promteforge — Cursor</div></div>
+        <div style="display:flex; height:610px"><div style="width:90px; background:#111114; border-right:1.5px solid var(--line)"></div>
+          <div style="width:230px; background:#141417; border-right:1.5px solid var(--line); padding:26px 22px; font:400 25px/2 var(--mono); color:#8f8c96">apps<br>&nbsp;&nbsp;cli<br>&nbsp;&nbsp;extension<br>&nbsp;&nbsp;vscode<br>packages<br>&nbsp;&nbsp;core</div>
+          <div style="flex:1; padding:30px 28px; font:400 27px/1.6 var(--mono); color:#6f6d78; position:relative"><div>// notes.md</div><div style="color:#dedbe4; margin-top:10px">fix the login bug, users get logged out after 5 minutes</div><div style="margin-top:12px; padding:18px 20px; border:1.5px solid var(--heat); border-radius:18px; background:rgba(255,154,77,.1); color:#ffd9b8; font-size:25px; line-height:1.5">## Goal<br>Fix the login bug: users are logged out after 5 minutes…</div>
+            <div class="abs" style="left:26px; right:26px; bottom:26px; padding:16px 22px; border-radius:16px; background:#222227; border:1.5px solid var(--line); font:400 26px var(--mono); color:#dedbe4">&gt; PromptForge: Write a Prompt…</div></div></div>
+        <div style="height:56px; background:#101013; border-top:1.5px solid var(--line); display:flex; justify-content:flex-end; align-items:center; padding:0 26px; gap:30px; font:400 24px var(--mono); color:#8f8c96"><span>main</span><span style="color:var(--heat)">✶ Forge</span></div></div>
+      <div class="dlabel">VS Code · Cursor · Antigravity</div><div class="dsub">press ⌥⇧F on any selection</div></div>
+    <div class="dev" id="dev3">
+      <div class="phone"><div class="notch"></div>
+        <div style="display:flex; align-items:center; gap:14px; font:800 30px var(--display); letter-spacing:-.03em; margin-top:28px"><span class="logo-sq"></span>PromptForge</div>
+        <div class="display" style="font-size:54px; font-weight:300; margin-top:28px">Get the prompt.</div>
+        <div style="margin-top:26px; background:#18181c; border:1.5px solid var(--line); border-radius:28px; padding:22px 22px 24px">
+          <div style="background:#141417; border-radius:18px; padding:20px; font:400 25px/1.45 var(--body)">plan my trip to goa, 4 friends, low budget</div>
+          <div style="margin-top:18px; background:#efedf2; color:#0c0c0e; border-radius:999px; text-align:center; font:700 27px var(--body); padding:20px">Convert to prompt →</div></div>
+        <div style="margin-top:20px; background:#18181c; border:1.5px solid var(--line); border-radius:28px; padding:22px; font:400 22px/1.5 var(--mono); color:#c9c6d0; height:250px; overflow:hidden">Act as a seasoned travel planner…<br><br>## Goal<br>Plan a budget trip to Goa for four friends…</div></div>
+      <div class="dlabel">Your phone, too</div><div class="dsub">add it to your home screen</div></div>
+  </div>
+
+  <!-- F : call to action -->
+  <div class="scene" id="cta">
+    <div class="big" style="top:420px"><span class="logo-sq" id="ctaLogo" style="width:210px; height:210px; border-radius:60px"></span></div>
+    <div class="big display" id="ctaName" style="top:700px; font-size:108px; font-weight:800">PromptForge</div>
+    <div class="big display" id="ctaTag" style="top:880px; font-size:70px; font-weight:300; line-height:1.15">Say it rough.<br><b style="font-weight:800">Ship it sharp.</b></div>
+    <div class="big" id="ctaBtn" style="top:1180px"><span class="holo">Try it free</span></div>
+    <div class="big mono" id="ctaUrl" style="top:1400px; font-size:40px; color:#fff; letter-spacing:.02em">promteforge-orpin.vercel.app</div>
+    <div class="big mono" id="ctaFoot" style="top:1500px; font-size:27px; color:var(--muted); line-height:1.7">Free · runs on your own computer · no account<br>github.com/swapnilyadv/promteforge</div>
+  </div>
+
+  <div id="toast" style="opacity:0"></div>
+  <div id="pill" style="opacity:0"><span class="star">✶</span><span id="pillLabel">Forge</span><kbd id="pillKbd">⌥⇧F</kbd></div>
+  <div id="ripple"></div>
+  <svg id="cursor" viewBox="0 0 24 24"><path d="M4 2 L4 19 L8.5 14.8 L11.4 21.5 L14 20.3 L11.2 13.8 L17.5 13.6 Z" fill="#fff" stroke="#0c0c0e" stroke-width="1.4" stroke-linejoin="round"/></svg>
+</div></div></div>
+
+<script src="timeline.js"></script>
+<script>
+const TL = window.TL;
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const E = {
+  out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
+  back: (t) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); },
+  expo: (t) => (t >= 1 ? 1 : 1 - Math.pow(2, -10 * t)), lin: (t) => t,
+};
+const p = (t, a, b, e = E.out) => e(clamp((t - a) / (b - a)));
+const lerp = (a, b, k) => a + (b - a) * k;
+const $ = (id) => document.getElementById(id);
+const win = (t, a, b, fi = .3, fo = .3) => Math.min(clamp((t - a) / fi), clamp((b - t) / fo));
+const esc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+
+// ---------- background word field (seeded, so every render is identical) ----------
+function rng(seed) { return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const WORDS = ['make it nice', 'pls', 'asap', 'fix this', 'dont use bootstrap', 'idk', 'like apple', 'but better', 'explain simply', 'TypeError', 'for my bakery', 'firm but polite', 'banao', 'load fast', '???', 'write an email', 'kuch accha', 'short pls', 'with react', 'no jargon', 'top 5', 'in hindi', 'make it pop', 'urgent', 'v2', 'remove the bug', 'similar to', 'something like', 'cloth business', 'ecommerce', 'websit'];
+const R = rng(7);
+const parts = Array.from({ length: 46 }, (_, i) => ({ t: WORDS[i % WORDS.length], x: R() * 1080, y: R() * 1920, z: R(), ph: R() * 6.28, sp: .15 + R() * .35 }));
+const ctx = $('field').getContext('2d');
+
+// ---------- the long prompt (real output of the engine for the example request, shortened) ----------
+const SPEC = [
+  ['ttl', 'Prompt: Build a Cloth Business Application Based on Flipkart'],
+  ['', 'Act as a senior product manager, full-stack developer, UI/UX designer, and e-commerce advisor.'],
+  ['', 'I want to build an application based on Flipkart for my own cloth business. I want a real platform that I can launch locally and grow.'],
+  ['h', '1. Goal'], ['', 'Help me build a scalable, user-friendly marketplace with its own brand and look.'],
+  ['h', '2. Core features'], ['li', 'Sign-up and login for customers and sellers'], ['li', 'Product pages with images, prices, availability'], ['li', 'Search and filter by category, size, color, price'], ['li', 'Cart, checkout, order tracking, reviews'], ['li', 'Seller dashboard and inventory tracking'],
+  ['h', '3. Admin dashboard'], ['li', 'Manage user accounts and permissions'], ['li', 'Monitor sales and financial reports'],
+  ['h', '4. Technology'], ['', 'Recommend a suitable modern stack for a beginner. Consider:'], ['li hl1', 'App: React Native or Flutter'], ['li hl1', 'Backend: Node.js or Django'], ['li hl1', 'Database: MongoDB or PostgreSQL'], ['li hl1', 'Payments: Stripe or Razorpay'], ['li hl1', 'Hosting: Vercel, Netlify, or Heroku'],
+  ['h', '5. Design requirements'], ['li', 'Modern and clean, fast loading'], ['li', 'Responsive for mobile and desktop'],
+  ['h', '6. Business requirements'], ['li hl2', 'Prices and payments in INR, with UPI'], ['li hl2', 'Compliance with GST and local rules'], ['li hl2', 'Local delivery and shipping options'],
+  ['h', '7. Development approach'], ['', 'Phase 1: Requirements and architecture'], ['', 'Phase 2: UI design and wireframes'], ['', 'Phase 3: Frontend and backend'], ['', 'Phase 4: Payments and orders'], ['', 'Phase 5: Testing, security, launch'],
+  ['h', '8. Important instructions'], ['li', 'Help me build a working product, not only theory'], ['li', 'Complete code files with their paths'], ['li', 'Keep API keys and secrets out of the frontend'],
+  ['h', 'First task'], ['', 'Before writing any code, ask me the essential questions about my budget, target customers, and whether I want a website or a mobile app. Then recommend an affordable architecture and a practical roadmap, starting with an MVP.'],
+];
+$('scroll').innerHTML = SPEC.map(([c, tx]) => `<div class="ln ${c}">${esc(tx)}</div>`).join('');
+const lns = [...document.querySelectorAll('#scroll .ln')];
+const layerB = $('layerB');
+const APPROACHES = [
+  { n: 'Full project spec', html: '' },
+  { n: 'Co-founder brief', html: `<p>I want to build an application similar to Flipkart for my own cloth business.</p><p><span class="k">Act as my technical co-founder</span>, product strategist, and expert full-stack developer.</p><p>My goal is a platform that I own and control.</p><p><span class="k">Customer experience:</span> a friendly homepage, categories, detailed product pages.</p><p><span class="k">Inventory:</span> a dashboard to add, edit and track stock.</p><p><span class="k">Payments:</span> UPI and cards, the common methods in India.</p><p>I don’t want a basic demo. I want a real platform.</p><p>Work with me step by step. Don’t generate the whole project in one response.</p>` },
+  { n: 'Roadmap in phases', html: `<div class="h">Goal</div><p>Build my cloth business app, inspired by Flipkart.</p><div class="h">Phases</div><p><span class="k">1.</span> Understand the vision and limits<br>→ deliverable: a one-page brief<br>→ check: I approve it</p><p><span class="k">2.</span> Plan the architecture<br>→ deliverable: diagram and data model<br>→ check: covers every feature</p><p><span class="k">3.</span> Design the screens<br>→ deliverable: wireframes</p><p><span class="k">4.</span> Build, test, launch</p>` },
+  { n: 'Ask me first', html: `<div class="h">Context</div><p>I want a clothing store app inspired by Flipkart.</p><div class="h">Instruction</div><p>Do not start yet. First ask me the questions below, wait for my answers, then do the work.</p><div class="h">Questions</div><p><span class="k">1.</span> Who are your first customers?</p><p><span class="k">2.</span> What is your budget and timeline?</p><p><span class="k">3.</span> Website, mobile app, or both?</p><p><span class="k">4.</span> Which products will you sell first?</p>` },
+];
+
+// ---------- helpers for the interface pieces ----------
+function cursorPos(t) {
+  const K = [[4.8, 900, 1500], [5.85, 872, 772], [6.7, 700, 1020], [7.6, 640, 1100], [16.0, 760, 860], [16.85, 850, 398], [17.5, 880, 480], [17.95, 850, 398], [18.6, 880, 480], [19.05, 850, 398], [19.9, 900, 560]];
+  if (t < K[0][0] || t > K[K.length - 1][0]) return null;
+  let i = 0; while (i < K.length - 2 && t > K[i + 1][0]) i++;
+  const [t0, x0, y0] = K[i], [t1, x1, y1] = K[i + 1];
+  const k = E.inOut(clamp((t - t0) / (t1 - t0)));
+  return [lerp(x0, x1, k), lerp(y0, y1, k)];
+}
+const CLICKS = [TL.pressT, ...TL.flipTimes];
+function typedHtml(t) {
+  const n = Math.floor(clamp((t - TL.typeStart) * TL.typeCps, 0, TL.typeText.length));
+  let s = esc(TL.typeText.slice(0, n));
+  if (n >= TL.typeText.length) {
+    const k = clamp((t - (TL.typeStart + TL.typeText.length / TL.typeCps)) / .4);
+    if (k > 0) s = s.replace('builddd', '<u class="typo">builddd</u>').replace('buissness', '<u class="typo">buissness</u>').replace('promte', '<u class="typo">promte</u>');
+  }
+  const caret = t < TL.pressT ? '<span class="caret" style="opacity:' + (Math.floor(t * 2.4) % 2 ? 0 : 1) + '"></span>' : '';
+  return s + caret;
+}
+const FIXED = 'I want to build an application based on Flipkart for my own cloth business.';
+let lastTyped = '', lastMode = '';
+
+function update(t) {
+  const beat = (t * TL.bpm / 60) % 1, pulse = Math.pow(1 - beat, 3);
+  // camera drift
+  const zoom = 1 + .035 * (t / TL.duration) + .006 * pulse;
+  $('cam').style.transform = `scale(${zoom}) translate(${Math.sin(t * .4) * 6}px, ${Math.cos(t * .3) * 6}px)`;
+  $('orb1').style.transform = `translate(${Math.sin(t * .35) * 120}px, ${Math.cos(t * .27) * 160}px) scale(${1 + .05 * pulse})`;
+  $('orb2').style.transform = `translate(${Math.cos(t * .3) * 140}px, ${Math.sin(t * .22) * 180}px)`;
+  document.documentElement.style.setProperty('--spin', `${(t * 60) % 360}deg`);
+
+  // field
+  const cp = cursorPos(t);
+  ctx.clearRect(0, 0, 1080, 1920);
+  for (const q of parts) {
+    let x = q.x + Math.sin(t * q.sp + q.ph) * 40, y = (q.y + t * (6 + q.z * 14)) % 2000 - 40, heat = 0;
+    if (cp) { const dx = x - cp[0], dy = y - cp[1], d = Math.hypot(dx, dy) || 1; if (d < 330) { const f = 1 - d / 330; x += dx / d * f * f * 150; y += dy / d * f * f * 150; heat = f; } }
+    const a = (.09 + q.z * .16 + heat * .5) * (t < 4 ? 1 : .55);
+    ctx.font = `${400 + Math.round(heat * 300)} ${22 + q.z * 22}px "Instrument Sans", sans-serif`;
+    ctx.fillStyle = heat > .05 ? `rgba(255,154,77,${Math.min(1, a)})` : `rgba(239,237,242,${a})`;
+    ctx.fillText(q.t, x, y);
+  }
+
+  // brand mark
+  $('brand').style.opacity = clamp(Math.min(p(t, 0, .6), 1 - p(t, TL.ctaT - .3, TL.ctaT + .1))) * .9;
+
+  // ===== Scene A: 0-4 =====
+  const aOn = win(t, -1, TL.sceneCuts[0] + .35, .01, .35);
+  $('sA').style.opacity = aOn;
+  $('aLabel').style.opacity = p(t, 1.0, 1.5); $('aLabel').style.transform = `translateY(${(1 - p(t, 1.0, 1.5)) * 30}px)`;
+  const hk = 1 - p(t, .85, 1.2, E.inOut); $('hook').style.opacity = hk; $('hook').style.transform = `translateY(${-p(t, .85, 1.25, E.inOut) * 220}px) scale(${1 + .04 * t})`;
+  [...document.querySelectorAll('#aHead .al')].forEach((el, i) => { const k = p(t, 2.75 + i * .22, 3.35 + i * .22, E.back); el.firstElementChild.style.transform = `translateY(${(1 - k) * 120}%)`; });
+
+  // ===== shared card (A, B) =====
+  const cardOn = t < 8.0;
+  const moveK = p(t, 3.55, 4.4, E.inOut);
+  const cardY = lerp(540, 800, moveK);
+  const cardScale = 1 + .02 * pulse * (t > 3.5 ? 1 : 0);
+  $('card').style.opacity = cardOn ? clamp(Math.min(p(t, .95, 1.35), 1 - p(t, 7.7, 8.2))) : 0;
+  $('card').style.transform = `translateY(${cardY - 540}px) scale(${cardScale})`;
+  if (cardOn) {
+    let html;
+    if (t < TL.stageTimes[0] + .3) html = typedHtml(t);
+    else {
+      const k = p(t, TL.stageTimes[0] + .2, TL.stageTimes[0] + 1.0);
+      html = k < .5 ? typedHtml(t).replace(/<span class="caret".*$/, '') : `<mark class="fix">${esc(FIXED)}</mark>`;
+      if (k < .5) html = `<s class="wrap">${esc('hey chatgpt')}</s>` + esc(TL.typeText.slice(11)).replace('builddd', '<u class="typo">builddd</u>').replace('buissness', '<u class="typo">buissness</u>').replace(/convert this into <u class="typo">promte<\/u>|convert this into promte/, '<s class="wrap">convert this into promte</s>');
+    }
+    if (html !== lastTyped) { $('typed').innerHTML = html; lastTyped = html; }
+  }
+
+  // ===== Scene B: 4-8 =====
+  const bOn = win(t, TL.sceneCuts[0] - .1, TL.sceneCuts[1] - .1, .3, .35);
+  $('sB').style.opacity = bOn;
+  [...document.querySelectorAll('#bTitle .bl')].forEach((el, i) => { const k = p(t, 4.0 + i * .18, 4.6 + i * .18, E.back); el.firstElementChild.style.transform = `translateY(${(1 - k) * 120}%)`; });
+
+  // ===== pill + toast =====
+  let pillOn = 0, pillY = 800, label = 'Forge', busy = false, kbdOn = true;
+  if (t >= 4.6 && t < 8.0) { pillOn = p(t, 4.6, 5.1, E.back); pillY = cardY - 28; }
+  if (t >= TL.pressT && t < TL.resultStart) { busy = true; kbdOn = false; label = `◐ Forging ${Math.floor(t - TL.pressT)}s`; }
+  if (t >= TL.resultStart - .1 && t < TL.sceneCuts[3] - .3 - 4.4) { /* scene C and D */ }
+  const inCD = t >= 8.0 && t < TL.sceneCuts[3];
+  if (inCD) { pillOn = p(t, 8.0, 8.4); pillY = 400 - 8; label = 'Another way'; }
+  const press = CLICKS.reduce((m, c) => Math.max(m, t >= c && t < c + .3 ? 1 - (t - c) / .3 : 0), 0);
+  const pill = $('pill');
+  pill.style.opacity = pillOn * (inCD && t > TL.sceneCuts[3] - .3 ? 0 : 1);
+  pill.style.right = '70px';
+  pill.style.top = `${pillY - 36}px`;
+  pill.style.transform = `scale(${(.92 + .08 * pillOn) * (1 - .1 * press)})`;
+  pill.classList.toggle('busy', busy);
+  $('pillLabel').textContent = label; $('pillKbd').style.display = kbdOn ? '' : 'none';
+
+  const toast = $('toast');
+  let tHtml = '', tOn = 0, tY = 600;
+  if (t >= TL.stageTimes[0] && t < TL.resultStart) {
+    const si = t >= TL.stageTimes[2] ? 2 : t >= TL.stageTimes[1] ? 1 : 0;
+    const names = ['Fixing spelling and grammar…', 'Reading what you want…', 'Writing the prompt'];
+    const words = si === 2 ? ` · ${Math.floor(clamp((t - TL.stageTimes[2]) / (TL.resultStart - TL.stageTimes[2])) * 480)} words` : '';
+    tHtml = `<b>${names[si]}</b>${words}<div class="bar2"><i style="width:${(clamp((t - TL.stageTimes[0]) / (TL.resultStart - TL.stageTimes[0])) * 100).toFixed(1)}%"></div></div>`.replace('</div></div>', '</div>');
+    tOn = p(t, TL.stageTimes[0], TL.stageTimes[0] + .25) * (1 - p(t, TL.resultStart - .15, TL.resultStart + .05));
+    tY = cardY - 200;
+  } else if (t >= TL.resultStart + .1 && t < TL.sceneCuts[2] + 4.4) {
+    const idx = approachIndex(t);
+    const nm = APPROACHES[Math.max(0, idx)].n;
+    tHtml = `Rewritten for <b>ChatGPT</b> by qwen2.5:7b<div class="sub">Approach: <b style="color:#fff">${nm}</b> · 100% of your details kept · spelling fixed</div><div class="btns"><span>Another way</span><span>Undo</span></div>`;
+    tOn = p(t, TL.resultStart + .1, TL.resultStart + .5, E.back) * (1 - p(t, TL.sceneCuts[3] - 1.5, TL.sceneCuts[3] - 1.1));
+    tY = 100;
+  }
+  if (toast.dataset.h !== tHtml) { toast.innerHTML = tHtml; toast.dataset.h = tHtml; }
+  toast.style.opacity = tOn; toast.style.right = '70px'; toast.style.top = `${tY}px`;
+  toast.style.transform = `scale(${.9 + .1 * tOn}) translateY(${(1 - tOn) * 20}px)`;
+
+  // ===== Scene C/D: 8-20.5 =====
+  const cOn = win(t, TL.resultStart - .05, TL.sceneCuts[3] - .05, .25, .4);
+  $('sC').style.opacity = cOn;
+  const idx = approachIndex(t);
+  const flipU = flipProgress(t);
+  // scroll position follows the content
+  const tops = (cls) => { const e = document.querySelector('#scroll .' + cls); return e ? e.offsetTop : 0; };
+  const hStarts = lns.filter((e) => e.classList.contains('h')).map((e) => e.offsetTop);
+  const sy = (() => {
+    const K = [[8.0, 0], [9.6, 0], [11.0, Math.max(0, tops('hl1') - 260)], [12.6, Math.max(0, tops('hl1') - 120)], [13.5, Math.max(0, tops('hl2') - 330)], [15.4, Math.max(0, lns[lns.length - 2].offsetTop - 760)], [16.0, Math.max(0, lns[lns.length - 2].offsetTop - 760)]];
+    for (let i = 0; i < K.length - 1; i++) if (t <= K[i + 1][0]) return lerp(K[i][1], K[i + 1][1], E.inOut(clamp((t - K[i][0]) / (K[i + 1][0] - K[i][0]))));
+    return K[K.length - 1][1];
+  })();
+  $('scroll').style.transform = `translateY(${-sy}px)`;
+  // lines reveal as they enter the card
+  lns.forEach((e) => { const top = e.offsetTop - sy; const k = clamp((1500 - top) / 220) * clamp((t - 8.3 - Math.max(0, top) / 1500 * .6) / .35 + .01); e.style.opacity = t < 8.3 ? 0 : (top > 1500 ? 0 : (t >= 8.3 ? clamp((t - 8.3) / .5) : 0)); e.style.transform = `translateY(${(1 - E.out(clamp((t - 8.2 - Math.max(0, top) / 1300 * .5) / .4))) * 24}px)`; });
+  const hl = (cls, a, b) => document.querySelectorAll('#scroll .' + cls).forEach((e) => { e.style.background = `rgba(255,154,77,${.22 * p(t, a, a + .35) * (1 - p(t, b, b + .3))})`; });
+  hl('hl1', 11.2, 12.9); hl('hl2', 13.4, 15.9);
+  // header counters
+  const n = Math.round(534 * p(t, 8.0, 15.0, E.inOut));
+  $('words').textContent = `${n} word${n === 1 ? '' : 's'}`;
+  $('hdr').style.opacity = clamp(p(t, 8.2, 8.7) * (1 - p(t, TL.flipTimes[0] - .2, TL.flipTimes[0]))) ;
+  $('chips').style.opacity = p(t, 8.6, 9.2) * (1 - p(t, TL.flipTimes[0] - .2, TL.flipTimes[0]));
+  $('chip1').style.transform = `translateX(${(1 - p(t, 8.6, 9.1, E.back)) * -300}px)`; $('chip2').style.transform = `translateX(${(1 - p(t, 8.9, 9.4, E.back)) * -400}px)`;
+  $('callout').style.opacity = p(t, 13.4, 13.9) * (1 - p(t, 15.7, 16.0)); $('callout').style.transform = `translateY(${(1 - p(t, 13.4, 13.9, E.back)) * 60}px)`;
+  // approach tag
+  const apOn = p(t, TL.flipTimes[0] - .15, TL.flipTimes[0] + .3) * (1 - p(t, TL.sceneCuts[3] - 1.0, TL.sceneCuts[3] - .7));
+  $('apTag').style.opacity = apOn;
+  const nm = APPROACHES[Math.max(0, idx)];
+  $('apName').textContent = nm.n; $('apNum').textContent = `Approach ${Math.max(0, idx) + 1} of 7`;
+  const popK = idx >= 1 ? E.back(clamp((t - TL.flipTimes[idx - 1] - .35) / .35)) : 1;
+  $('apTag').style.transform = `scale(${.9 + .1 * popK})`;
+  // card: tilt and flip
+  const preFlip = t < TL.flipTimes[0] ? 0 : 1;
+  const shrink = p(t, TL.flipTimes[0] - .6, TL.flipTimes[0] - .1, E.inOut) * (1 - p(t, TL.sceneCuts[3] - 1.1, TL.sceneCuts[3] - .6, E.inOut) * 0);
+  const sevenK = p(t, 19.3, 19.9, E.inOut);
+  const cardScaleC = 1 - .12 * shrink - .1 * sevenK;
+  const showB = idx >= 1 && flipU.faceB;
+  $('scroll').style.display = showB ? 'none' : ''; layerB.style.display = showB ? '' : 'none';
+  if (showB) { const h = APPROACHES[idx].html; if (layerB.dataset.h !== String(idx)) { layerB.innerHTML = h; layerB.dataset.h = String(idx); } layerB.style.opacity = 1; }
+  $('result').style.transform = `translateY(${shrink * 90 - sevenK * 170}px) scale(${cardScaleC}) perspective(2400px) rotateY(${flipU.angle}deg)`;
+  $('result').style.opacity = clamp(p(t, 8.0, 8.5)) * (1 - sevenK * .55);
+  // the 7 ways
+  $('seven').style.opacity = p(t, 19.6, 20.1) * (1 - p(t, 20.3, 20.5)); $('seven').style.transform = `translateY(${(1 - p(t, 19.6, 20.1, E.back)) * 80}px)`;
+  $('callout').style.display = t < 16.1 ? '' : 'none';
+
+  // ===== Scene E: 20.5-26 =====
+  const eOn = win(t, TL.sceneCuts[3] - .05, TL.ctaT - .05, .3, .3);
+  $('sE').style.opacity = eOn;
+  $('devTitle').style.transform = `translateY(${(1 - p(t, 20.6, 21.2, E.back)) * 80}px)`; $('devTitle').style.opacity = p(t, 20.6, 21.1);
+  TL.deviceTimes.forEach((a, i) => {
+    const b = i < 2 ? TL.deviceTimes[i + 1] : TL.ctaT;
+    const inK = p(t, a, a + .6, E.back), outK = p(t, b - .35, b - .05, E.inOut);
+    const el = $('dev' + (i + 1));
+    el.style.opacity = i < 2 ? (inK > 0 && outK < 1 ? 1 : 0) : (inK > 0 && outK < 1 ? 1 : 0);
+    el.style.transform = `translateX(${(1 - inK) * 1100 - outK * 1100}px) rotate(${(1 - inK) * 6 - outK * 6}deg) scale(${.96 + .04 * inK})`;
+  });
+  const mp = $('miniPill'); mp.style.transform = `scale(${1 + .06 * pulse})`;
+
+  // ===== Scene F: 26-30 =====
+  const fK = p(t, TL.ctaT, TL.ctaT + .5);
+  $('cta').style.opacity = fK;
+  $('ctaLogo').style.transform = `scale(${E.back(clamp((t - TL.ctaT) / .6)) * (1 + .05 * pulse)}) rotate(${(1 - p(t, TL.ctaT, TL.ctaT + .8)) * -90}deg)`;
+  const rise = (id, a) => { const k = p(t, a, a + .5, E.back); $(id).style.opacity = clamp((t - a) / .3); $(id).style.transform = `translateY(${(1 - k) * 70}px)`; };
+  rise('ctaName', TL.ctaT + .35); rise('ctaTag', TL.ctaT + .7); rise('ctaBtn', TL.ctaT + 1.05); rise('ctaUrl', TL.ctaT + 1.4); rise('ctaFoot', TL.ctaT + 1.7);
+  $('ctaBtn').firstElementChild.style.transform = `scale(${1 + .04 * pulse})`;
+
+  // ===== cursor + click ripple =====
+  const cur = $('cursor');
+  if (cp) {
+    const fade = Math.min(p(t, 4.8, 5.2), 1 - p(t, 7.3, 7.6)) , fade2 = t >= 16 ? Math.min(p(t, 16.0, 16.4), 1 - p(t, 19.6, 19.9)) : 0;
+    cur.style.opacity = t < 8 ? fade : fade2;
+    cur.style.transform = `translate(${cp[0] - 10}px, ${cp[1] - 6}px) scale(${1 - .15 * press})`;
+  } else cur.style.opacity = 0;
+  const rip = $('ripple'); const rc = CLICKS.find((c) => t >= c && t < c + .5);
+  if (rc !== undefined && cp) { const k = (t - rc) / .5; rip.style.opacity = 1 - k; rip.style.left = `${cp[0] - 20}px`; rip.style.top = `${cp[1] - 20}px`; rip.style.transform = `scale(${1 + k * 3})`; } else rip.style.opacity = 0;
+}
+
+function approachIndex(t) { let i = 0; TL.flipTimes.forEach((f, k) => { if (t >= f + .33) i = k + 1; }); return i; }
+function flipProgress(t) {
+  for (let k = TL.flipTimes.length - 1; k >= 0; k--) {
+    const f = TL.flipTimes[k]; if (t >= f) {
+      const u = clamp((t - f) / .7);
+      if (u >= 1) return { angle: 0, faceB: true };
+      return u < .5 ? { angle: E.inOut(u * 2) * 90, faceB: k > 0 || false } : { angle: -(1 - E.inOut((u - .5) * 2)) * 90, faceB: true };
+    }
+  }
+  return { angle: 0, faceB: false };
+}
+
+window.seek = (t) => update(t);
+window.ready = document.fonts.ready.then(() => Promise.all(['700 40px Unbounded', '400 30px "Instrument Sans"', '400 30px "JetBrains Mono"'].map((f) => document.fonts.load(f))));
+// Preview in a window: scale the stage to fit and loop in real time.
+function fit() { const k = Math.min(innerWidth / 1080, innerHeight / 1920); $('fit').style.transform = `scale(${k})`; }
+if (!location.search.includes('render')) {
+  addEventListener('resize', fit); fit();
+  window.ready.then(() => { const start = performance.now(); const loop = () => { update(((performance.now() - start) / 1000) % TL.duration); requestAnimationFrame(loop); }; loop(); });
+}
+</script>
+</body>
+</html>

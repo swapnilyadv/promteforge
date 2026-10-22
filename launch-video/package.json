@@ -1,0 +1,13 @@
+{
+  "name": "promptforge-launch-video",
+  "private": true,
+  "type": "module",
+  "description": "The launch video: an animated HTML scene, rendered frame by frame with Brave and encoded with ffmpeg. Not part of the workspace.",
+  "scripts": {
+    "preview": "python3 -m http.server 8800",
+    "audio": "python3 audio/make_music.py",
+    "render": "node render.mjs",
+    "all": "python3 audio/make_music.py && node render.mjs"
+  },
+  "devDependencies": { "puppeteer-core": "^23.0.0" }
+}
