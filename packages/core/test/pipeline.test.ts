@@ -159,6 +159,10 @@ describe('postprocess + validate', () => {
     expect(check('Research intermittent fasting.\n\n**Context:** Recent studies.\n**Format:** Short summary.', 'task-first')).not.toContain('missing-structure');
     // "Label: value" lines
     expect(check('Role: Editor\nTask: Rewrite the paragraph.\nOutput format: The text only.', 'markdown')).not.toContain('missing-structure');
+    // Numbered headings: "1. Goal", "2. Core features"
+    expect(check('Prompt: Build an app\n\n1. Goal\nHelp me.\n\n2. Core features\n* Sign-up\n\nFirst task\nAsk me first.', 'markdown')).not.toContain('missing-structure');
+    // A numbered list of sentences is not a heading
+    expect(check('Please do this.\n1. User registers and then logs in to the app.\n2. User browses the long product catalog page.', 'markdown')).toContain('missing-structure');
     // Plain prose is still not structure
     expect(check('Please rewrite the paragraph so it is clearer and shorter.', 'markdown')).toContain('missing-structure');
   });

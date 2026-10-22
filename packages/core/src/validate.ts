@@ -72,7 +72,7 @@ export function postprocess(raw: string): string {
  * A line that opens a section: "## Goal", "**Goal**", "**Goal:** text", "**Goal**: text" or "Goal: text".
  * Models write all of these; each is a clear, labelled section.
  */
-const SECTION_LABEL = /^(#{1,4} \S.*|\*\*[^*\n]{2,40}(:\*\*|\*\*:?)(\s.*)?|[A-Z][A-Za-z &/]{2,30}:(\s.*)?)$/gm;
+const SECTION_LABEL = /^(#{1,4} \S.*|\*\*[^*\n]{2,40}(:\*\*|\*\*:?)(\s.*)?|[A-Z][A-Za-z &/]{2,30}:(\s.*)?|\d{1,2}\.\s+[A-Z][A-Za-z&/'-]*(?: [A-Za-z&/'-]+){0,3})$/gm;
 
 function hasStructure(prompt: string, structure: Structure): boolean {
   switch (structure) {
