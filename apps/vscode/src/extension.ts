@@ -50,7 +50,7 @@ function forgeWithProgress(text: string, editor?: vscode.TextEditor, strategy?: 
 
 function summary(r: ForgeOutcome): string {
   const who = r.mode === 'llm' ? `by ${r.model} on this computer` : 'from rules only';
-  return `Rewritten for ${r.target} ${who} · approach: ${r.strategy.name} · ${Math.round(r.kept * 100)}% of your details kept${r.cleaned ? ' · spelling fixed' : ''}`;
+  return `Rewritten for ${r.targetLabel} ${who} · approach: ${r.strategy.name} · ${Math.round(r.kept * 100)}% of your details kept${r.cleaned ? ' · spelling fixed' : ''}`;
 }
 
 async function toClipboard(r: ForgeOutcome): Promise<boolean> {
@@ -119,7 +119,7 @@ async function write() {
 async function chooseModel() {
   const url = settings().ollamaUrl;
   const models = await listOllamaModels(url);
-  if (!models.length) return void vscode.window.showWarningMessage(`PromptForge: Ollama is not reachable at ${url}. Open the Ollama app, then try again.`);
+  if (!models.length) return void vscode.window.showWarningMessage(`PromptForge: Ollama is not reachable at ${url}. Open the Ollama app (or install it from ollama.com and run: ollama pull qwen2.5:7b), then try again.`);
   const pick = await vscode.window.showQuickPick(models, { title: 'PromptForge model', placeHolder: settings().model || 'Automatic (qwen2.5 first)' });
   if (pick) await vscode.workspace.getConfiguration('promptforge').update('model', pick, vscode.ConfigurationTarget.Global);
 }

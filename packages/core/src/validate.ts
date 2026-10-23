@@ -60,12 +60,38 @@ export function postprocess(raw: string): string {
   // Unwrap a single code fence around the whole output (``` or ```markdown/xml/text).
   const m = s.match(/^```(?:markdown|md|xml|text|txt|prompt)?\n([\s\S]*?)\n```$/);
   if (m) s = m[1]!.trim();
+  // A stray "<" before the first word ("<Prompt: ...") when the model half-started a tag.
+  s = s.replace(/^<(?![A-Za-z_][\w-]*>)\s*/, '');
   // Unwrap <prompt>…</prompt> if the model added it.
   const p = s.match(/^<(improved_)?prompt>\n?([\s\S]*?)\n?<\/(improved_)?prompt>$/);
   if (p) s = p[2]!.trim();
   // Drop a trailing chatty sign-off line.
   s = s.replace(/\n+(let me know|feel free|i hope this|this prompt (will|should))[^\n]*$/i, '').trim();
+  // Drop a closing tag at the very end that closes nothing ("...First task\n</goal>").
+  const end = s.match(/\n<\/([a-z_][\w-]*)>$/i);
+  if (end) {
+    const name = end[1]!;
+    const opens = (s.match(new RegExp(`<${name}>`, 'g')) ?? []).length;
+    const closes = (s.match(new RegExp(`</${name}>`, 'g')) ?? []).length;
+    if (closes > opens) s = s.slice(0, end.index).trim();
+  }
   return s;
+}
+
+/**
+ * Small models sometimes describe the person asking in the third person ("The user is 19"). The prompt is
+ * written as that person, so for a task (not an app spec, where "the user" means the app's users) it becomes
+ * "I am 19".
+ */
+export function asTheUser(prompt: string): string {
+  return prompt
+    .replace(/(^|\n)(\s*(?:[-*]|\d+\.)?\s*)The user is\b/g, '$1$2I am')
+    .replace(/(^|\n)(\s*(?:[-*]|\d+\.)?\s*)The user has\b/g, '$1$2I have')
+    .replace(/(^|\n)(\s*(?:[-*]|\d+\.)?\s*)The user (wants|needs|prefers|likes)\b/g, (_, a: string, b: string, v: string) => `${a}${b}I ${v.replace(/s$/, '')}`)
+    .replace(/(^|\n)(\s*(?:[-*]|\d+\.)?\s*)The user's\b/g, '$1$2My')
+    .replace(/\bthe user's\b/g, 'my')
+    // "I am 19 and has just started" → "and have".
+    .replace(/(^|\n)([^\n]*\bI (?:am|have|want|need)\b[^\n]*?)\band (has|is|wants|needs)\b/g, (_, a: string, b: string, v: string) => `${a}${b}and ${v === 'is' ? 'am' : v === 'has' ? 'have' : v.slice(0, -1)}`);
 }
 
 /**

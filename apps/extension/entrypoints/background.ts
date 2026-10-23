@@ -5,9 +5,15 @@ import type { Message, PortIn, PortOut, Stage } from '../lib/messages.js';
 import { ensureOllamaAccess } from '../lib/ollama-origin.js';
 import { loadSettings } from '../lib/settings.js';
 
+const SITE = 'https://promteforge-orpin.vercel.app';
+
 export default defineBackground(() => {
   void ensureOllamaAccess();
-  browser.runtime.onInstalled.addListener(() => void ensureOllamaAccess());
+  browser.runtime.onInstalled.addListener((details) => {
+    void ensureOllamaAccess();
+    // First install only: show where the button appears and how to add the free local model.
+    if (details.reason === 'install') void browser.tabs.create({ url: `${SITE}/?installed=chrome#setup` });
+  });
 
   // One-shot questions (the popup asks whether Ollama is running).
   browser.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
@@ -40,7 +46,7 @@ export default defineBackground(() => {
         let text = '';
         let lastSent = 0;
         let stage: Stage = 'cleaning';
-        const progress = () => send({ type: 'progress', stage, words: (text.match(/\S+/g) ?? []).length });
+        const progress = () => send({ type: 'progress', stage, words: (text.match(/\S+/g) ?? []).length, tail: text.slice(-220) });
         const result = await forge({ text: req.text, url: req.url, strategy: req.strategy }, await loadSettings(), undefined, undefined, {
           signal: abort.signal,
           onStage: (s) => {

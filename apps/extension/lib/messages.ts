@@ -7,6 +7,8 @@ export type ForgeResponse =
       ok: true;
       prompt: string;
       target: Target;
+      /** The target's display name, e.g. "ChatGPT". */
+      targetLabel: string;
       intent: Intent;
       /** The approach used, so "another way" can move to the next one. */
       strategy: { id: StrategyId; name: string };
@@ -35,5 +37,5 @@ export type Message =
 /** Messages on the long-lived 'forge' port: one request in, progress and one result out. */
 export type PortIn = { type: 'forge'; text: string; url: string; strategy?: StrategyId };
 export type PortOut =
-  | { type: 'progress'; stage: Stage; words: number }
+  | { type: 'progress'; stage: Stage; words: number; /** The end of the text written so far, for a live preview. */ tail: string }
   | { type: 'done'; result: ForgeResponse };

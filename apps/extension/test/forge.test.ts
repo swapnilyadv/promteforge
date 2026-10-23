@@ -19,6 +19,7 @@ describe('forge', () => {
     if (!r.ok) return;
     expect(usedModel).toBe('qwen2.5:7b'); // best-measured model when none is chosen
     expect(r.target).toBe('chatgpt');
+    expect(r.targetLabel).toBe('ChatGPT');
     expect(r.mode).toBe('llm');
     expect(r.model).toBe('qwen2.5:7b');
     expect(r.prompt).toContain('landlord');
@@ -40,7 +41,7 @@ describe('forge', () => {
     if (!r.ok) return;
     expect(r.mode).toBe('offline');
     expect(r.target).toBe('claude');
-    expect(r.warnings[0]).toMatch(/Ollama is not running/);
+    expect(r.warnings[0]).toMatch(/rules engine on this device/);
     expect(r.prompt).toContain('<'); // Claude gets XML sections even without a model
   });
 

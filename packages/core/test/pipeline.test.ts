@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  basicClean,
   classifyIntent,
   detectLanguage,
   detectTarget,
@@ -172,5 +173,23 @@ describe('postprocess + validate', () => {
     expect(wordBudget('detailed', 'what is rust', tiny)).toBeLessThanOrEqual(120);
     const long = 'word '.repeat(400);
     expect(wordBudget('concise', long, extractSlots(long))).toBeGreaterThanOrEqual(640);
+  });
+});
+
+describe('offline spelling clean-up', () => {
+  it('fixes stretched words, chat shorthand and dropped g', () => {
+    expect(basicClean('hey can u buildd a websiteee for my bakeryyy pls, i wanna sell cakes online')).toBe(
+      'Hey can you build a website for my bakery please, I want to sell cakes online',
+    );
+    expect(basicClean('alll the featurs shud be gooood. sooo plz help me wid the desgin')).toBe(
+      'All the features should be good. So please help me with the design',
+    );
+    expect(basicClean('i am buildin an app. idk wat to do nxt')).toBe("I am building an app. I don't know what to do next");
+    expect(basicClean('make it fast!!! thx')).toBe('Make it fast!!! Thanks');
+  });
+
+  it('leaves links, emails, file names, numbers and all-caps alone', () => {
+    const t = 'U.S. market, see www.example.com and mail u@x.com about u.ts and my 2nd shop, ZZZ and R';
+    expect(basicClean(t)).toBe(t);
   });
 });

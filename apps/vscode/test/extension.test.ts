@@ -46,7 +46,7 @@ vi.mock('vscode', () => ({
 
 vi.mock('@promptforge/providers', async (orig) => ({ ...(await orig<object>()), listOllamaModels: async () => ['qwen2.5:7b'] }));
 
-const outcome = { prompt: '## Goal\nFix the login bug.', mode: 'llm' as const, model: 'qwen2.5:7b', target: 'cursor', intent: 'debugging', strategy: { id: 'spec', name: 'Full project spec' }, kind: 'project' as const, kept: 1, warnings: [] };
+const outcome = { prompt: '## Goal\nFix the login bug.', mode: 'llm' as const, model: 'qwen2.5:7b', target: 'cursor', targetLabel: 'Cursor', intent: 'debugging', strategy: { id: 'spec', name: 'Full project spec' }, kind: 'project' as const, kept: 1, warnings: [] };
 const forgeText = vi.hoisted(() => vi.fn());
 vi.mock('../src/forge.js', async (orig) => ({ ...(await orig<object>()), forgeText }));
 
@@ -101,7 +101,7 @@ describe('commands', () => {
     expect(state.info[0]).toMatch(/approach: Full project spec/);
     expect(state.info[0]).toMatch(/for another way/);
     expect(state.clipboard).toBe(outcome.prompt);
-    expect(state.info[0]).toMatch(/Rewritten for cursor by qwen2.5:7b/);
+    expect(state.info[0]).toMatch(/Rewritten for Cursor by qwen2.5:7b/);
     expect(state.info[0]).toMatch(/Undo/);
   });
 

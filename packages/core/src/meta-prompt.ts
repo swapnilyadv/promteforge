@@ -4,7 +4,7 @@ import type { IntentTemplate } from './templates.js';
 import type { Strategy } from './strategies.js';
 import type { ConvertContext, Intent, Slots, Style, ValidationIssue } from './types.js';
 
-export const META_PROMPT_VERSION = 4;
+export const META_PROMPT_VERSION = 5;
 
 /** Short budgets can't hold every section: small models follow the section list over the word limit. */
 function maxSections(budget: number, available: number): number {
@@ -30,6 +30,8 @@ export interface MetaPromptInput {
   missing: (keyof Slots)[];
   context?: ConvertContext;
   strategy: Strategy;
+  /** Built-in notes about this kind of project and its market (rich approaches only). */
+  notes?: string[];
 }
 
 /** Rich approaches expand a seed idea into the prompt an expert would write; `brief` stays strict and compact. */
@@ -50,12 +52,12 @@ function richSystemPrompt(m: MetaPromptInput): string {
     '',
     'RULES',
     "1. Expand the idea. Add the sections, features, requirements, constraints and steps that a strong version of this request normally needs, using good judgment about what is missing. The user's short message is a seed, not the whole prompt.",
-    "2. Keep everything the user said (goals, names, brands, places, numbers, preferences) and let it shape the whole prompt. Read the clues: a named company, city, currency or language tells you the market and context, so tailor to it (for example a mention of an Indian company suggests prices in rupees, UPI payments and GST).",
+    "2. Keep everything the user said (goals, names, brands, places, numbers, preferences) and let it shape the whole prompt. Read the clues: a named company, city, currency or language tells you the market and context, so tailor to it (for example a city or company in India suggests rupees, UPI and GST; one in the UK suggests pounds and GDPR). Use only the market the request points to; if it points to none, do not assume one.",
     "3. \"Like\", \"based on\" or \"inspired by\" a named company or product means taking inspiration from how it works. Never ask for that company's APIs, data, branding, accounts or integration, and say that the result should have its own identity.",
     "4. Never invent facts about the user personally (their budget, deadline, team, brand name, experience). Where those matter, tell the AI to ask the user for them.",
     '5. Suggest technologies, tools and methods only as options to consider, or as something for the AI to recommend. Never present them as fixed requirements.',
     '6. Fix every spelling and grammar mistake and write clean, natural, confident English. Remove anything addressed to a chatbot, such as "hey ChatGPT" or "convert this into a prompt": that is an instruction to you, not part of the request.',
-    '7. Write the prompt to the AI, in the first person as the user ("I want...", "Help me..."). It is a prompt, not an answer: do not perform the task.',
+    '7. Write the prompt to the AI, in the first person as the user ("I want...", "Explain to me...", "I am 19..."). Facts about the user stay about "me": never "the user is...", and never turn a request for the user into one for someone else. It is a prompt, not an answer: do not perform the task.',
     `8. Write in ${lang} (keep code and technical terms as they are).`,
     '9. Output ONLY the final prompt. No preface ("Here is..."), no explanations, no closing remarks, no surrounding code fence.',
     `10. Length: about ${m.budget} words.`,
@@ -111,6 +113,9 @@ function richUserPrompt(m: MetaPromptInput): string {
   if (m.context?.languageId) known.push(`editor language = ${m.context.languageId}`);
   if (m.context?.fileName) known.push(`current file = ${m.context.fileName}`);
   if (known.length) lines.push('', `Detected from the request: ${known.join('; ')}.`);
+  if (m.notes?.length) {
+    lines.push('', 'NOTES for this kind of project (use what fits, in your own words; leave out what does not apply):', ...m.notes.map((n) => `- ${n}`));
+  }
   lines.push(
     '',
     '<user_request>',

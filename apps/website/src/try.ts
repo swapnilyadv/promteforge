@@ -18,12 +18,12 @@ for (const [id, p] of Object.entries(PROFILES)) {
   if (id === 'image') continue;
   target.add(new Option(p.label, id));
 }
-target.value = 'claude';
+target.value = 'chatgpt';
 
 let last = '';
 /** The message the current prompt came from, and the approach used: "Another way" starts again from these. */
 let source = '';
-let strategy: StrategyId = 'brief';
+let strategy: StrategyId = 'spec';
 let kind: RequestKind = 'task';
 
 function run(next = false) {
@@ -32,19 +32,18 @@ function run(next = false) {
     meta.textContent = 'Type something first, even a few rough words.';
     return;
   }
-  if (next) strategy = nextStrategy(strategy, kind);
-  else {
-    source = text;
-    strategy = 'brief';
-  }
-  const r = convert({ text, target: target.value as Target, style: 'balanced', strategy });
+  if (!next) source = text;
+  // A new message gets the approach that fits it (a full spec for a project, an expert brief for an email);
+  // "Another way" then walks through the other approaches.
+  const r = convert({ text, target: target.value as Target, style: 'balanced', strategy: next ? nextStrategy(strategy, kind) : 'auto' });
   // convert() is async when a provider is passed; without one the result is synchronous.
   void Promise.resolve(r).then((res) => {
     last = res.prompt;
     kind = res.kind;
+    strategy = res.strategy;
     out.textContent = res.prompt;
     const kept = Math.round(res.validation.keywordRecall * 100);
-    meta.textContent = `Rules-based, on this device · ${getStrategy(res.strategy).name} · ${res.intent} · ${kept}% of your key words kept${res.cleaned ? ' · spelling fixed' : ''}${res.strategy === 'brief' ? '' : ' · the extension makes this richer with a model'}`;
+    meta.textContent = `Rules-based, on this device · ${getStrategy(res.strategy).name} · ${res.kind === 'project' ? 'project' : res.intent} · ${kept}% of your key words kept${res.cleaned ? ' · spelling fixed' : ''}`;
     out.classList.remove('empty');
     copy.disabled = false;
     if (another) another.disabled = false;

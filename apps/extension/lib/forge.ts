@@ -1,4 +1,4 @@
-import { APP_DEFAULT_STRATEGY, convert, detectTarget, getStrategy, type StrategyId } from '@promptforge/core';
+import { APP_DEFAULT_STRATEGY, convert, detectTarget, getStrategy, PROFILES, type StrategyId } from '@promptforge/core';
 import { createProvider, listOllamaModels, pickOllamaModel, type Provider } from '@promptforge/providers';
 import type { ForgeResponse, Stage, StatusResponse } from './messages.js';
 import type { Settings } from './settings.js';
@@ -38,8 +38,8 @@ export async function forge(
     const result = await convert({
       text,
       context: { url: req.url },
-      // With a model, the first Forge is the rich full spec; without one the compact brief is all rules can do.
-      strategy: req.strategy ?? (models.length ? APP_DEFAULT_STRATEGY : undefined),
+      // The first Forge picks the approach that fits the request (a full spec for a project); with or without a model.
+      strategy: req.strategy ?? APP_DEFAULT_STRATEGY,
       style: s.style,
       provider: models.length ? makeProvider(s, model) : undefined,
       model,
@@ -48,11 +48,12 @@ export async function forge(
       onStage: hooks.onStage,
     });
     const warnings = [...result.warnings];
-    if (!models.length) warnings.unshift('Ollama is not running, so this prompt was built from rules only.');
+    if (!models.length) warnings.unshift('Built by the rules engine on this device. Add the free local model for an even better prompt: see the PromptForge popup.');
     return {
       ok: true,
       prompt: result.prompt,
       target: result.target,
+      targetLabel: PROFILES[result.target].label,
       intent: result.intent,
       strategy: { id: result.strategy, name: getStrategy(result.strategy).name },
       kind: result.kind,

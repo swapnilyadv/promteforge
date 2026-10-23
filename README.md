@@ -1,11 +1,21 @@
 # PromptForge
 
-Turn rough text into a model-aware, well-engineered prompt with one click — inside ChatGPT, Claude, Gemini, VS Code, or anywhere on your desktop.
+Turn rough text into a well-engineered prompt with one click, inside ChatGPT, Claude, Gemini, VS Code, Cursor, or on your phone. Free, and your words stay on your computer.
 
-> Status: **Sessions 1–5 done** (monorepo, providers, core engine, `pf` CLI, eval harness).
-> Now: Session 6 (tune with a real model + blind judge; eval prep done) → then Session 7 (browser extension). See `docs/SESSIONS.md`.
+**Website and live converter:** https://promteforge-orpin.vercel.app/
 
-## Quick start (macOS)
+## Install in 2 minutes
+
+| Where you write | How |
+| --- | --- |
+| **Chrome, Brave, Edge** (ChatGPT, Claude, Gemini) | Download [`promptforge-chrome.zip`](https://promteforge-orpin.vercel.app/downloads/promptforge-chrome.zip) and unzip it. Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick the `promptforge-extension` folder. Then press **✶ Forge** (or `Alt+Shift+F`) on the chat box. |
+| **VS Code, Cursor, Antigravity** | Download [`promptforge.vsix`](https://promteforge-orpin.vercel.app/downloads/promptforge.vsix). In the Extensions panel, open the **⋯** menu, choose **Install from VSIX…** and pick the file. Select text and press `Alt+Shift+F`. |
+| **iPhone, Android** | Open the [app page](https://promteforge-orpin.vercel.app/app.html), then **Share → Add to Home Screen**. |
+| **Free local model** (recommended) | Install [Ollama](https://ollama.com/download), then run `ollama pull qwen2.5:7b` (about 4.7 GB, 8 GB of memory). The extensions find it on their own. |
+
+Everything works without the model: the built-in rules engine writes the prompt on your device. With the model, a language model on your own computer writes it. Store listings (Chrome Web Store, VS Code Marketplace) are planned; until then, download the newest files to update.
+
+## Quick start for developers (macOS)
 
 ```bash
 # 1. Install Node 20+ and pnpm (once)
@@ -29,7 +39,7 @@ pnpm pf analyze "fix this TypeError in my react app"
 ```bash
 brew install ollama && ollama serve        # in another terminal
 ollama pull qwen2.5:7b                      # or llama3.1:8b
-pnpm pf convert -p ollama -m qwen2.5:7b -t claude "explain kubernetes to a beginner"
+pnpm pf convert -p ollama -t claude "explain kubernetes to a beginner"   # uses the best installed model
 ```
 
 ### Use your own API key
@@ -49,6 +59,8 @@ packages/
 apps/
   cli/         `pf` command for trying and testing the engine.
   extension/   Chrome extension: a Forge button in the Claude / ChatGPT / Gemini chat box. See apps/extension/README.md.
+  vscode/      VS Code / Cursor / Antigravity extension: forge the selection, or write in a new tab.
+  website/     The landing page, the in-browser converter and the phone app (static, deployed on Vercel).
 evals/         Test cases, scorer and blind LLM judge. See evals/README.md.
 ```
 
@@ -83,7 +95,7 @@ PromptForge does not just reformat your words. It first **removes the wrapper** 
 | 6 | Draft, then critique | First draft, a checklist critique, then an improved final version |
 | 7 | Short and sharp | A compact brief that adds nothing you did not say |
 
-With a model connected, the first Forge is #1. Press **Forge again** (the button says *Another way*) for #2, #3 and so on, each built from your original words. The rich styles need a model; without one you get the compact brief plus one approach section.
+The first Forge picks the approach that fits: the full spec for something to build, an expert brief for a task such as an email. Press **Another way** for the next approach, each built from your original words. This works with or without a model: without one, the rules engine fills the approach from built-in knowledge of common products (shops, food ordering, bookings, courses, fitness, communities, property, travel, finance, websites, SaaS, jobs, events, to-do apps, games) and of the market you mention.
 
 The rich styles add what a strong version of the request normally needs (features, phases, rules) and read context clues (a named Indian company suggests rupees, UPI and GST). They do not invent facts about you (budget, deadline, brand name): the prompt tells the AI to ask. Technologies appear only as options to consider. "Based on Flipkart" means inspired by, never integrated with.
 
@@ -97,7 +109,7 @@ Edit the engine once (`packages/core`), then run:
 pnpm ship
 ```
 
-It builds and tests everything, repackages the editor extension and reinstalls it into VS Code, Cursor and Antigravity, and rebuilds the Chrome extension and the website. Afterwards: reload the editor window, click the reload arrow on the extension in `chrome://extensions`, and `git push` to publish the website (Vercel deploys `main`).
+It builds and tests everything, repackages the editor extension and reinstalls it into VS Code, Cursor and Antigravity, rebuilds the Chrome extension and the website, and puts fresh download files in `apps/website/downloads`. Afterwards: reload the editor window, click the reload arrow on the extension in `chrome://extensions`, and `git push` to publish the website (Vercel deploys `main`).
 
 ## Development
 
@@ -105,6 +117,7 @@ It builds and tests everything, repackages the editor extension and reinstalls i
 | --- | --- |
 | `pnpm build` | Build all packages (Turborepo, dependency order) |
 | `pnpm test` | Vitest in every package |
+| `pnpm --filter promptforge test:vscode` | End-to-end test of the editor extension inside your installed VS Code, against a stand-in Ollama |
 | `pnpm typecheck` | Strict TypeScript check |
 | `pnpm pf <cmd>` | Run the CLI (`convert`, `analyze`, `models`, `targets`) |
 | `pnpm eval` | Score the engine on 100+ cases (add `-p ollama -j anthropic` for model + blind judge) |

@@ -7,6 +7,7 @@ import { buildMetaPrompt, buildRepairMessages } from './meta-prompt.js';
 import { normalize, restoreSecrets } from './normalize.js';
 import { getProfile, type ModelProfile } from './profiles/index.js';
 import { renderOffline } from './render-offline.js';
+import { projectNotes, renderRichOffline } from './rich-offline.js';
 import { autoStrategy, getStrategy, requestKind, STYLE_FACTOR, withOfflineApproach } from './strategies.js';
 import { extractSlots, missingSlots } from './slots.js';
 import { detectTarget } from './target.js';
@@ -19,9 +20,10 @@ import type {
   Slots,
   Style,
   Target,
+  ValidationIssue,
   ValidationReport,
 } from './types.js';
-import { postprocess, validatePrompt } from './validate.js';
+import { asTheUser, postprocess, validatePrompt } from './validate.js';
 
 /**
  * Rules below this confidence get a second opinion from the model. Measured on 167 labelled requests:
@@ -97,6 +99,18 @@ function findPlaceholders(prompt: string): string[] {
   return [...new Set(all.filter((p) => !p.startsWith('[REDACTED_SECRET_') && !/^\[[ xX]\]$/.test(p)))];
 }
 
+/** A plain-language note for the user, or nothing when the issue is only a style nit for the model. */
+function userNote(i: ValidationIssue): string | undefined {
+  const quoted = [...i.message.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  if (i.code === 'dropped-details' && quoted.length) return `Check that these details from your message are in the prompt: ${quoted.join(', ')}.`;
+  if (i.code === 'invented-details') {
+    const list = i.message.match(/\(([^)]+)\)/)?.[1];
+    return list ? `It names technologies you did not mention (${list}). Treat them as suggestions.` : undefined;
+  }
+  if (i.code === 'lost-input') return 'Some code or text you pasted may have changed. Check it before sending.';
+  return undefined;
+}
+
 function isAbort(err: unknown, signal?: AbortSignal): boolean {
   return !!signal?.aborted || (err instanceof Error && err.name === 'AbortError');
 }
@@ -109,7 +123,10 @@ async function runModel(
   stream: boolean,
   temperature = 0.2,
 ): Promise<string> {
-  const req = { messages, model: opts.model, temperature, maxTokens, signal: opts.signal };
+  // Rough token count (about 3.2 characters per token) plus the answer: ask for a bigger window only when needed.
+  const need = Math.ceil(messages.reduce((n, m) => n + m.content.length, 0) / 3.2) + maxTokens + 256;
+  const contextTokens = need > 8192 ? (need > 16384 ? 32768 : 16384) : undefined;
+  const req = { messages, model: opts.model, temperature, maxTokens, contextTokens, signal: opts.signal };
   if (!stream || !opts.onToken) return provider.generate(req);
   let out = '';
   for await (const tok of provider.stream(req)) {
@@ -200,8 +217,26 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
       allowedTerms: [opts.context?.languageId ?? '', ...(opts.context?.workspaceFiles ?? [])],
     });
 
-  let prompt = a.profile.structure === 'image' ? offline.prompt : withOfflineApproach(offline.prompt, strategy.id, a.profile.structure);
-  let changes = offline.changes;
+  // Without a model (and as the fallback when the model fails) the rules engine still writes the chosen approach
+  // in full: a project gets the whole spec from built-in knowledge of that kind of product, a task gets the
+  // approach's own sections on top of the brief.
+  // Technologies the user named (or the editor's language): requirements, never options.
+  const namedTech = [...a.slots.tech, ...(opts.context?.languageId ? [opts.context.languageId] : [])];
+  const rich = richMode
+    ? renderRichOffline({
+        text: working,
+        kind,
+        intent: a.intent,
+        strategy: strategy.id,
+        structure: a.profile.structure,
+        brief: offline.prompt,
+        tech: namedTech,
+        hasInputs: a.slots.inputs.length > 0,
+        strategyName: strategy.name,
+      })
+    : undefined;
+  let prompt = rich?.prompt ?? (a.profile.structure === 'image' ? offline.prompt : withOfflineApproach(offline.prompt, strategy.id, a.profile.structure));
+  let changes = rich?.changes ?? offline.changes;
   let mode: ConvertResult['mode'] = 'offline';
   let fallback: ConvertResult['fallback'];
   let repairs = 0;
@@ -237,6 +272,7 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
       budget,
       language: normalized.language,
       strategy,
+      notes: richMode && kind === 'project' ? projectNotes(working, namedTech) : undefined,
       askQuestions,
       alreadyStructured: a.alreadyStructured,
       missing: a.missing,
@@ -272,7 +308,7 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
         fallback = { reason: 'failed-checks', detail: codes };
         warnings.push(`The model's rewrite failed checks (${codes}); used the rules-based prompt instead.`);
       } else {
-        prompt = draft;
+        prompt = richMode && kind === 'task' ? asTheUser(draft) : draft;
         validation = report;
         mode = 'llm';
         changes = [
@@ -280,7 +316,11 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
           ...(cleaned ? ['Fixed spelling and grammar in your message'] : []),
           ...offline.changes.slice(0, 4),
         ];
-        if (!report.ok) warnings.push(...report.issues.map((i) => i.message));
+        // Validator messages are written for the model. The user only hears about what they might want to check.
+        for (const i of report.issues) {
+          const note = userNote(i);
+          if (note) warnings.push(note);
+        }
       }
     } catch (err) {
       if (isAbort(err, opts.signal)) throw err;

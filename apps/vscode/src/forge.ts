@@ -1,4 +1,4 @@
-import { APP_DEFAULT_STRATEGY, convert, getStrategy, type ConvertContext, type RequestKind, type StrategyId } from '@promptforge/core';
+import { APP_DEFAULT_STRATEGY, convert, getStrategy, PROFILES, type ConvertContext, type RequestKind, type StrategyId } from '@promptforge/core';
 import { createProvider, listOllamaModels, pickOllamaModel, type Provider } from '@promptforge/providers';
 
 export interface ForgeSettings {
@@ -15,6 +15,8 @@ export interface ForgeOutcome {
   mode: 'llm' | 'offline';
   model?: string;
   target: string;
+  /** The target's display name, e.g. "Cursor". */
+  targetLabel: string;
   intent: string;
   /** The approach used, so "another way" can move on to the next one. */
   strategy: { id: StrategyId; name: string };
@@ -51,16 +53,17 @@ export async function forgeText(
     model,
     signal: hooks.signal,
     onStage: hooks.onStage,
-    // With a model, the first Forge is the rich full spec; without one the compact brief is all rules can do.
-    strategy: hooks.strategy ?? (models.length ? APP_DEFAULT_STRATEGY : undefined),
+    // The first Forge picks the approach that fits the request (a full spec for a project); with or without a model.
+    strategy: hooks.strategy ?? APP_DEFAULT_STRATEGY,
   });
   const warnings = [...r.warnings];
-  if (!models.length) warnings.unshift('Ollama is not running, so this prompt was built from rules only.');
+  if (!models.length) warnings.unshift('Built by the rules engine on this computer. For an even better prompt, install Ollama and run: ollama pull qwen2.5:7b');
   return {
     prompt: r.prompt,
     mode: r.mode,
     model: r.mode === 'llm' ? model : undefined,
     target: r.target,
+    targetLabel: PROFILES[r.target].label,
     intent: r.intent,
     strategy: { id: r.strategy, name: getStrategy(r.strategy).name },
     kind: r.kind,

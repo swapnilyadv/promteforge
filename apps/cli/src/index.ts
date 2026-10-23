@@ -4,6 +4,7 @@ import {
   createProvider,
   listOllamaModels,
   OLLAMA_DEFAULT_URL,
+  pickOllamaModel,
   type Provider,
   type ProviderConfig,
 } from '@promptforge/providers';
@@ -22,7 +23,7 @@ Options
   -t, --target <t>         chatgpt | claude | gemini | vscode | cursor | copilot | perplexity | deepseek | grok | image | generic
   -u, --url <url>          Detect target from a page URL instead
   -s, --style <s>          concise | balanced (default) | detailed
-  -a, --approach <a>       spec (default with a model) | cofounder | stepwise | interview | expert | critique | brief, or 1-7
+  -a, --approach <a>       auto (default: spec for a project, expert for a task) | spec | cofounder | stepwise | interview | expert | critique | brief, or 1-7
                            A different way to build the prompt for the same request
   -p, --provider <p>       offline (default) | ollama | lmstudio | openai | anthropic | gemini | openrouter
   -m, --model <name>       Model name for the provider
@@ -130,7 +131,7 @@ async function main() {
   const style = values.style as Style;
   if (!['concise', 'balanced', 'detailed'].includes(style)) throw new Error(`Bad --style "${style}"`);
   let strategy: StrategyId | undefined;
-  if (values.approach) {
+  if (values.approach && values.approach !== 'auto') {
     const n = Number(values.approach);
     strategy = (Number.isInteger(n) ? STRATEGIES[n - 1]?.id : STRATEGIES.find((x) => x.id === values.approach)?.id) as StrategyId | undefined;
     if (!strategy) throw new Error(`Bad --approach "${values.approach}". Use one of: ${STRATEGIES.map((x, i) => `${i + 1}=${x.id}`).join(', ')}`);
@@ -160,7 +161,12 @@ async function main() {
 
   if (cmd !== 'convert') throw new Error(`Unknown command "${cmd}". Run: pf --help`);
 
-  const provider = buildProvider(values.provider!, values.model);
+  // With Ollama and no --model, use the best model that is actually installed.
+  let model = values.model;
+  if (values.provider === 'ollama' && !model) {
+    model = pickOllamaModel('', await listOllamaModels(process.env.OLLAMA_BASE_URL ?? OLLAMA_DEFAULT_URL));
+  }
+  const provider = buildProvider(values.provider!, model);
   const live = !values.json && process.stdout.isTTY && !!provider;
   if (live) process.stdout.write(c.dim(`… ${provider!.id} (${provider!.model}) is rewriting\n\n`));
 
@@ -169,10 +175,10 @@ async function main() {
     target,
     context,
     style,
-    strategy: strategy ?? (provider ? APP_DEFAULT_STRATEGY : undefined),
+    strategy: strategy ?? APP_DEFAULT_STRATEGY,
     askQuestions,
     provider,
-    model: values.model,
+    model,
     onToken: live ? (t) => process.stdout.write(c.dim(t)) : undefined,
   });
 

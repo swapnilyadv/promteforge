@@ -44,7 +44,7 @@ describe('forgeText', () => {
       throw new Error('should not be called');
     }, []);
     expect(r.mode).toBe('offline');
-    expect(r.warnings[0]).toMatch(/Ollama is not running/);
+    expect(r.warnings[0]).toMatch(/rules engine on this computer/);
     expect(r.prompt.length).toBeGreaterThan(ROUGH.length);
   });
 

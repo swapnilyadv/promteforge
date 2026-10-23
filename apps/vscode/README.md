@@ -12,13 +12,17 @@ Cursor and Antigravity are built on VS Code, so the same `.vsix` installs in all
 - **Press `⌥⇧F` again** with the new prompt still selected (it stays selected) for **another way**: your original words, the next approach (full project spec, co-founder brief, roadmap in phases, ask me first, expert persona, draft then critique, short and sharp). Spelling and grammar are fixed first.
 - A notification shows the step, a timer and a **Cancel** button while the model works.
 
-The prompt is shaped for the editor you are in: Cursor and VS Code get a coding brief (goal, current vs expected behaviour, deliverable, acceptance criteria).
+The first press picks the approach that fits: the full project spec for something to build, an expert brief for a task. Coding tasks get a coding brief (goal, current vs expected behaviour, deliverable, acceptance criteria).
 
 ## Needs
 
-[Ollama](https://ollama.com) running with a model: `ollama pull qwen2.5:7b`. Without it you still get a rules-based prompt, and the note says so.
+Nothing, to start: without a model the built-in rules engine writes the prompt (the note says so). For the best prompts, install [Ollama](https://ollama.com/download) and run `ollama pull qwen2.5:7b`.
 
 ## Install
+
+Download [`promptforge.vsix`](https://promteforge-orpin.vercel.app/downloads/promptforge.vsix), then in your editor: **Extensions → ⋯ → Install from VSIX…** and pick the file.
+
+To build it yourself:
 
 ```bash
 pnpm install

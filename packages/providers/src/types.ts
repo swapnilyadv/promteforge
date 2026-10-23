@@ -11,6 +11,8 @@ export interface GenerateRequest {
   model?: string;
   temperature?: number;
   maxTokens?: number;
+  /** Room the model needs for prompt + answer, in tokens. Local models read only this much; the rest is cut silently. */
+  contextTokens?: number;
   signal?: AbortSignal;
 }
 
@@ -41,6 +43,12 @@ export interface OllamaConfig extends BaseConfig {
   baseUrl?: string;
   /** How long Ollama keeps the model in memory after a request. Default '15m' (Ollama's own default is 5m). */
   keepAlive?: string;
+  /**
+   * Context window to ask Ollama for. Default 8192: Ollama's own default (often 4096) is too small for a rich
+   * prompt plus its answer, and Ollama drops the start of the conversation (the instructions) without an error.
+   * One fixed value for every call, because changing it makes Ollama reload the model.
+   */
+  contextTokens?: number;
 }
 
 export interface OpenAICompatibleConfig extends BaseConfig {

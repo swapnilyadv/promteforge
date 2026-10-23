@@ -30,6 +30,7 @@ const STYLE = `
   .toast .btns { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; }
   .toast button { background: transparent; color: #ff9a4d; font-weight: 600; padding: 4px 6px; white-space: nowrap; }
   .toast.err { border-color: rgba(255,120,120,.55); }
+  .peek { margin-top: 8px; max-height: 4.6em; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; font: 11.5px/1.5 ui-monospace, Menlo, monospace; color: #b9b6c0; white-space: pre-wrap; word-break: break-word; -webkit-mask-image: linear-gradient(to bottom, transparent, #000 45%); mask-image: linear-gradient(to bottom, transparent, #000 45%); }
   @media (prefers-reduced-motion: reduce) { .pill, .spin, .bar i { transition: none; animation: none; } }
 `;
 
@@ -52,12 +53,18 @@ function composerFrom(el: Element | null): Editable | null {
  */
 function boxAround(el: Editable): HTMLElement {
   const width = el.getBoundingClientRect().width;
+  let rounded: HTMLElement | null = null;
   let n: HTMLElement | null = el;
-  for (let i = 0; n && i < 8; i++, n = n.parentElement) {
-    const radius = parseFloat(getComputedStyle(n).borderTopLeftRadius) || 0;
-    if (radius >= 12 && n.getBoundingClientRect().width >= width) return n;
+  // Gemini's box is nine levels above its editor; ChatGPT's and Claude's are closer.
+  for (let i = 0; n && i < 14; i++, n = n.parentElement) {
+    const cs = getComputedStyle(n);
+    if ((parseFloat(cs.borderTopLeftRadius) || 0) < 12 || n.getBoundingClientRect().width < width) continue;
+    // Prefer a box you can see (a fill, a border or a shadow) over an invisible rounded wrapper.
+    const visible = !/^(transparent|rgba\(0, 0, 0, 0\))$/.test(cs.backgroundColor) || parseFloat(cs.borderTopWidth) > 0 || cs.boxShadow !== 'none';
+    if (visible) return n;
+    rounded ??= n;
   }
-  return el;
+  return rounded ?? el;
 }
 
 function readText(el: Editable): string {
@@ -102,7 +109,20 @@ async function writeText(el: Editable, text: string): Promise<boolean> {
   return same(readText(el), text);
 }
 
-const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
+type Child = Node | string | false | null | undefined;
+
+/**
+ * Builds elements without innerHTML: pages such as Gemini enforce Trusted Types, which reject HTML strings, and
+ * text set this way can never be read as markup.
+ */
+function h<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', ...kids: Child[]): HTMLElementTagNameMap[K] {
+  const el = document.createElement(tag);
+  if (cls) el.className = cls;
+  for (const k of kids) if (k) el.append(k);
+  return el;
+}
+const bold = (s: string) => h('b', '', s);
+const sub = (...kids: Child[]) => h('div', 'sub', ...kids);
 
 const STAGE_TEXT = {
   cleaning: 'Fixing spelling and grammar…',
@@ -118,22 +138,22 @@ export default defineContentScript({
     const host = document.createElement('div');
     host.setAttribute('data-promptforge', '');
     const root = host.attachShadow({ mode: 'closed' });
-    root.innerHTML = `
-      <style>${STYLE}</style>
-      <div class="wrap">
-        <div class="toast" role="status" aria-live="polite"><div class="msg"></div><div class="btns"><button class="act" type="button"></button><button class="act act2" type="button"></button></div></div>
-        <button class="pill" type="button" title="Rewrite this message (Alt+Shift+F)"><span class="star">✶</span><span class="label">Forge</span><kbd>⌥⇧F</kbd></button>
-      </div>`;
+    const style = h('style');
+    style.textContent = STYLE;
+    const toastMsg = h('div', 'msg');
+    const act = h('button', 'act');
+    const act2 = h('button', 'act act2');
+    const toast = h('div', 'toast', toastMsg, h('div', 'btns', act, act2));
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+    const label = h('span', 'label', 'Forge');
+    const kbd = h('kbd', '', '⌥⇧F');
+    const pill = h('button', 'pill', h('span', 'star', '✶'), label, kbd);
+    pill.title = 'Rewrite this message (Alt+Shift+F)';
+    for (const b of [act, act2, pill]) b.type = 'button';
+    const wrap = h('div', 'wrap', toast, pill);
+    root.append(style, wrap);
     document.documentElement.appendChild(host);
-
-    const wrap = root.querySelector<HTMLElement>('.wrap')!;
-    const pill = root.querySelector<HTMLButtonElement>('.pill')!;
-    const label = root.querySelector<HTMLElement>('.label')!;
-    const kbd = root.querySelector<HTMLElement>('kbd')!;
-    const toast = root.querySelector<HTMLElement>('.toast')!;
-    const toastMsg = root.querySelector<HTMLElement>('.msg')!;
-    const act = root.querySelector<HTMLButtonElement>('.act')!;
-    const act2 = root.querySelector<HTMLButtonElement>('.act2')!;
 
     let current: Editable | null = null;
     let busy = false;
@@ -145,6 +165,8 @@ export default defineContentScript({
     let hideTimer = 0;
     let toastTimer = 0;
     let frame = 0;
+    /** The box found for the current editor; looked up again only when the editor or the page layout changes it. */
+    let box: { for: Editable; el: HTMLElement } | null = null;
 
     // The button sits on the top-right edge of the message box and is re-aimed every frame while it is
     // visible, so it stays attached to the box through scrolling, resizing and the box growing as you type.
@@ -154,19 +176,20 @@ export default defineContentScript({
       const show = busy || toast.classList.contains('show') || worthForging(readText(current));
       wrap.classList.toggle('show', show);
       if (!show) return;
-      const r = boxAround(current).getBoundingClientRect();
+      if (!box || box.for !== current || !box.el.isConnected || !box.el.contains(current)) box = { for: current, el: boxAround(current) };
+      const r = box.el.getBoundingClientRect();
       if (r.bottom < 0 || r.top > innerHeight) return void wrap.classList.remove('show');
       wrap.style.right = `${Math.max(8, innerWidth - r.right + 14)}px`;
       // The pill straddles the box's top border; the toast stacks above it.
-      wrap.style.bottom = `${Math.max(8, innerHeight - r.top - 15)}px`;
+      wrap.style.bottom = `${Math.max(8, innerHeight - r.top - 12)}px`;
       frame = requestAnimationFrame(aim);
     };
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(aim);
     };
 
-    const say = (html: string, opts: { actions?: { label: string; run: () => void }[]; error?: boolean; ms?: number; bar?: boolean } = {}) => {
-      toastMsg.innerHTML = html + (opts.bar ? '<div class="bar"><i></i></div>' : '');
+    const say = (content: Child[], opts: { actions?: { label: string; run: () => void }[]; error?: boolean; ms?: number; bar?: boolean } = {}) => {
+      toastMsg.replaceChildren(...content.filter((c): c is Node | string => !!c), ...(opts.bar ? [h('div', 'bar', h('i'))] : []));
       toast.classList.toggle('err', !!opts.error);
       const [a1, a2] = opts.actions ?? [];
       onAct = a1?.run ?? null;
@@ -231,34 +254,38 @@ export default defineContentScript({
       const again = !!last && last.el === el && same(now, last.prompt);
       const text = again ? last!.original : now;
       const strategy: StrategyId | undefined = again ? nextStrategy(last!.strategy, last!.kind) : undefined;
-      if (!worthForging(text)) return say('Type a little more first: a sentence or two.', { ms: 3500 });
+      if (!worthForging(text)) return say(['Type a little more first: a sentence or two.'], { ms: 3500 });
 
       busy = true;
       let cancelled = false;
       const t0 = Date.now();
       let stage: keyof typeof STAGE_TEXT = 'cleaning';
       let words = 0;
+      let tail = '';
       const paint = () => {
         const secs = Math.round((Date.now() - t0) / 1000);
         pill.classList.add('busy');
         pill.disabled = true;
         kbd.style.display = 'none';
-        label.innerHTML = `<span class="spin">◐</span> Forging ${secs}s`;
+        label.replaceChildren(h('span', 'spin', '◐'), ` Forging ${secs}s`);
         const detail = stage === 'rewriting' && words ? ` · ${words} words` : '';
-        const slow = secs > 20 ? '<div class="sub">The model is working on this computer. A longer message takes longer.</div>' : '';
-        say(`<b>${STAGE_TEXT[stage]}</b>${detail}${slow}`, { bar: true, ms: 0, actions: [{ label: 'Cancel', run: () => ((cancelled = true), job.cancel()) }] });
+        const slow = secs > 20 && sub('The model is working on this computer. A longer message takes longer.');
+        const peek = stage === 'rewriting' && tail && h('div', 'peek', h('span', '', tail));
+        say([bold(STAGE_TEXT[stage]), detail, slow, peek], { bar: true, ms: 0, actions: [{ label: 'Cancel', run: () => ((cancelled = true), job.cancel()) }] });
       };
       const job = forgeOverPort(text, strategy, (p) => {
         stage = p.stage;
         words = p.words;
+        tail = p.tail;
       });
       paint();
       const timer = window.setInterval(paint, 500);
       try {
         const res = await job.done;
         if (cancelled) return void toast.classList.remove('show');
-        if (!res.ok) return say(esc(res.error), { error: true });
-        original = { el, text: now };
+        if (!res.ok) return say([res.error], { error: true });
+        // Undo always goes back to the user's own words, also after "Another way".
+        original = { el, text };
         const wrote = await writeText(el, res.prompt);
         if (!wrote) {
           // The editor refused the replacement: leave the user's text alone and hand them the result.
@@ -270,13 +297,13 @@ export default defineContentScript({
           } catch {
             /* clipboard blocked */
           }
-          return say(copied ? 'This editor would not take the new text. It is copied: select all and press ⌘V (Ctrl+V).' : 'This editor would not take the new text.', { error: true, ms: 12000 });
+          return say([copied ? 'This editor would not take the new text. It is copied: select all and press ⌘V (Ctrl+V).' : 'This editor would not take the new text.'], { error: true, ms: 12000 });
         }
-        const who = res.mode === 'llm' ? `by <b>${esc(res.model ?? 'your model')}</b> on this computer` : 'from <b>rules only</b>';
-        const warn = res.warnings[0] ? `<div class="sub">${esc(res.warnings[0])}</div>` : '';
+        const who = res.mode === 'llm' ? ['by ', bold(res.model ?? 'your model'), ' on this computer'] : ['from ', bold('rules only')];
+        const warn = res.warnings[0] && sub(res.warnings[0]);
         last = { el, original: text, prompt: res.prompt, strategy: res.strategy.id, kind: res.kind };
         const fixed = res.cleaned ? ' · spelling fixed' : '';
-        say(`Rewritten for <b>${esc(res.target)}</b> ${who}<div class="sub">Approach: <b>${esc(res.strategy.name)}</b> · ${Math.round(res.kept * 100)}% of your details kept${fixed}</div>${warn}`, {
+        say(['Rewritten for ', bold(res.targetLabel), ' ', ...who, sub('Approach: ', bold(res.strategy.name), ` · ${Math.round(res.kept * 100)}% of your details kept${fixed}`), warn], {
           actions: [
             { label: 'Another way', run: () => void run() },
             {
@@ -295,7 +322,7 @@ export default defineContentScript({
         });
       } catch (err) {
         if (cancelled) toast.classList.remove('show');
-        else say(esc(err instanceof Error ? err.message : String(err)), { error: true });
+        else say([err instanceof Error ? err.message : String(err)], { error: true });
       } finally {
         clearInterval(timer);
         busy = false;

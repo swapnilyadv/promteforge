@@ -11,6 +11,8 @@ coverage/
 .wxt/
 out/
 *.vsix
+!apps/website/downloads/*.vsix
 
 launch-video/out/
 launch-video/node_modules/
+.vscode-test/

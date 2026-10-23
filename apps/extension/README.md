@@ -1,10 +1,12 @@
 # PromptForge extension (Chrome)
 
-Adds a **Forge** button on the top-right edge of the message box on claude.ai, chatgpt.com and gemini.google.com. Type a rough message, press Forge (or `⌥⇧F`), and it is rewritten in place for that site's AI by a model on your own computer. While it works you see the step it is on, the words written so far, a timer and a **Cancel** button. When it is done, press **Undo** in the note to get your original text back. Nothing is sent to a server.
+Adds a **Forge** button on the top-right edge of the message box on claude.ai, chatgpt.com and gemini.google.com. Type a rough message, press Forge (or `⌥⇧F`), and it is rewritten in place for that site's AI, by a model on your own computer (Ollama), or by the built-in rules engine when no model is running. While it works you see the step it is on, the words written so far, a timer and a **Cancel** button. When it is done, press **Undo** in the note to get your original text back. Nothing is sent to a server.
 
-## Try it
+## Install
 
-Needs [Ollama](https://ollama.com) running with a model (`ollama pull qwen2.5:7b`).
+Download [`promptforge-chrome.zip`](https://promteforge-orpin.vercel.app/downloads/promptforge-chrome.zip), unzip it, open `chrome://extensions` (or `brave://extensions`, `edge://extensions`), turn on **Developer mode**, click **Load unpacked** and pick the `promptforge-extension` folder. For the best prompts, also install [Ollama](https://ollama.com/download) and run `ollama pull qwen2.5:7b`; without it the rules engine writes the prompt.
+
+## Build it yourself
 
 ```bash
 pnpm install
@@ -35,6 +37,7 @@ The model defaults to `qwen2.5` if installed, then `llama3.1`: those are the mod
 
 ## Known limits
 
-- Not yet run inside a real Chrome against the live sites: the editors' markup changes often, and `composerSelectors` in `lib/sites.ts` is the first place to look if the button does not appear. Please report which site.
+- Checked on the live chatgpt.com, claude.ai and gemini.google.com pages (Oct 2026): button placement, live preview, text replacement, Another way and Undo. The sites change their editors often; if the button does not appear or sits in the wrong place, `composerFrom` and `boxAround` in `entrypoints/content.ts` are the first place to look. Please report which site.
+- The toast and button are built without `innerHTML`, so pages that enforce Trusted Types (Gemini) accept them.
 - Chrome only for now (Edge and Brave load the same build). Firefox needs `wxt build -b firefox` and its own check of the Origin rule.
 - The first rewrite after a while is slow while Ollama loads the model.

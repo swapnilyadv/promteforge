@@ -30,6 +30,7 @@ export function createOllama(cfg: OllamaConfig): Provider {
           keep_alive: cfg.keepAlive ?? '15m',
           options: {
             temperature: req.temperature ?? 0.3,
+            num_ctx: Math.max(req.contextTokens ?? 0, cfg.contextTokens ?? 8192),
             ...(req.maxTokens ? { num_predict: req.maxTokens } : {}),
           },
         },

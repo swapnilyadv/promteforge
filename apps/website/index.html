@@ -77,7 +77,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .btn.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
 .btn.ghost:hover { border-color: rgba(239, 237, 242, .4); }
 #nav-install[hidden] { display: none; }
-@media (max-width: 480px) { .hide-s { display: none; } .nav-actions { gap: 8px; } .nav .btn { padding: 11px 14px; font-size: 14px; } .logo { font-size: 16px; } }
+@media (max-width: 480px) { .hide-s, .btn span.hide-s { display: none; } .nav-actions { gap: 8px; } .nav .btn { padding: 11px 14px; font-size: 14px; } .logo { font-size: 16px; } }
 .sheet { position: fixed; inset: 0; z-index: 90; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; background: rgba(5, 5, 7, .62); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); padding: 16px 16px calc(env(safe-area-inset-bottom, 0px) + 16px); }
 .sheet[hidden] { display: none; }
 .sheet-card { position: relative; width: 100%; max-width: 440px; background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 22px 22px 20px; animation: sheet-in .45s cubic-bezier(.2, .8, .2, 1) both; }
@@ -295,6 +295,25 @@ pre.out .ln { display: block; animation: rise .35s cubic-bezier(.2, .8, .2, 1) b
 .stat p { color: var(--muted); font-size: 14px; max-width: 26ch; }
 .footnote { margin-top: 26px; font-family: var(--mono); font-size: 12px; color: var(--muted); max-width: 80ch; }
 
+/* ---------- setup ---------- */
+.setup { position: relative; z-index: 1; padding-block: 100px; border-top: 1px solid var(--line); }
+.setup-lead { color: var(--muted); font-size: 17px; max-width: 64ch; }
+.setup-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 36px; }
+@media (max-width: 860px) { .setup-grid { grid-template-columns: minmax(0, 1fr); } }
+.setup-card { display: grid; gap: 14px; align-content: start; background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 24px; min-width: 0; }
+.setup-card .fmt { font: 600 11px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--heat); }
+.setup-card h3 { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; }
+.setup-card .btn { justify-self: start; }
+.setup-card ol { margin: 0; padding-left: 20px; display: grid; gap: 8px; color: var(--muted); font-size: 15px; }
+.setup-card ol b { color: var(--fg); font-weight: 600; }
+.setup-card code { font: 13px var(--mono); color: #d9d3e4; background: var(--bg-2); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; overflow-wrap: anywhere; }
+.setup-card kbd { font: 600 12px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 1px 6px; color: var(--fg); }
+.cmd.small { margin-top: 8px; padding: 6px 6px 6px 12px; }
+.cmd.small code { background: none; border: 0; padding: 0; }
+.setup-ok { margin-top: 22px; padding: 14px 18px; border-radius: 14px; border: 1px solid rgba(111, 220, 140, .45); background: rgba(111, 220, 140, .08); color: var(--fg); max-width: 80ch; }
+.setup-ok[hidden] { display: none; }
+.setup-note { margin-top: 22px; font-family: var(--mono); font-size: 12px; color: var(--muted); max-width: 80ch; }
+
 /* ---------- final ---------- */
 .final { position: relative; z-index: 1; padding-block: 120px; text-align: left; border-top: 1px solid var(--line); overflow: hidden; }
 .final h2 { font-size: clamp(2.6rem, 8vw, 7rem); font-weight: 800; line-height: .95; }
@@ -327,10 +346,11 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
       <a href="#how" data-scramble>How it works</a>
       <a href="#targets" data-scramble>Targets</a>
       <a href="#proof" data-scramble>Evals</a>
+      <a href="#setup" data-scramble>Set up</a>
     </nav>
     <div class="nav-actions">
       <button class="btn ghost" id="nav-install" type="button"><span>Install</span></button>
-      <a class="btn magnetic" href="#start"><span><span class="hide-s">Get the </span>CLI</span></a>
+      <a class="btn magnetic" href="#setup"><span>Get it<span class="hide-s">&nbsp;free</span></span></a>
     </div>
   </div>
 </header>
@@ -406,7 +426,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
         <a class="btn ghost" href="./app.html">Open the app on your phone →</a>
         <span class="hint">Install it to your home screen: one tap, no browser bar.</span>
       </div>
-      <p class="try-note"><b>This runs in your browser.</b> The rules-based engine builds the prompt on this device. Nothing you type is sent anywhere. For a rewrite by a language model, install the <a href="#start" style="text-decoration:underline">browser extension or the command line</a>, which use a model on your own computer.</p>
+      <p class="try-note"><b>This runs in your browser.</b> The rules-based engine builds the prompt on this device. Nothing you type is sent anywhere. For a rewrite by a language model, install the <a href="#setup" style="text-decoration:underline">browser or editor extension</a>, which can use a free model on your own computer.</p>
     </div>
   </section>
 
@@ -420,7 +440,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
         <span class="eyebrow">Right where you type</span>
         <h2 style="margin-top:14px">Write badly in Claude.<br>Send something great.</h2>
         <p>The browser extension adds one button to the chat box on Claude, ChatGPT and Gemini. Type the way you normally would, press Forge, and your message is rewritten in place, for the AI on that page, by a model running on your own computer. You read it, then send it.</p>
-        <span class="soon">Browser extension · in development</span>
+        <a class="soon" href="#setup">Free download · Chrome, Brave, Edge</a>
       </div>
       <div class="inapp-grid">
         <div class="browser" aria-label="Animation: PromptForge rewriting a message in the Claude chat box">
@@ -436,7 +456,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
           </div>
         </div>
         <ol class="howto" id="howto">
-          <li class="on"><span class="n">1</span><div><h3>Add the extension</h3><p>Once, from the Chrome Web Store. It talks to Ollama on your Mac, so nothing goes to a server.</p></div></li>
+          <li class="on"><span class="n">1</span><div><h3>Add the extension</h3><p>Once, in two minutes (steps below). It works on its own, and with Ollama it uses a model on your computer, so nothing goes to a server.</p></div></li>
           <li><span class="n">2</span><div><h3>Type like you text</h3><p>Rough, short, typos, Hinglish. It notices you're on claude.ai and picks Claude's format.</p></div></li>
           <li><span class="n">3</span><div><h3>Press Forge or <kbd>⌥⇧F</kbd></h3><p>Your message is rewritten in the box. Every detail you gave is checked before it's shown.</p></div></li>
           <li><span class="n">4</span><div><h3>Read it, then send</h3><p>Edit anything you like, or press Undo to get your original text back.</p></div></li>
@@ -520,21 +540,75 @@ monsoon balcony, watercolor,
       <span class="eyebrow">Measured, not vibed</span>
       <h2 style="margin-block:14px 34px">Numbers from the eval harness.</h2>
       <div class="proof-grid">
-        <div class="stat"><span class="num" data-count="10">10<small>/11</small></span><p>times a blind judge preferred the forged prompt over the raw request</p></div>
-        <div class="stat"><span class="num" data-count="0">0<small>/11</small></span><p>prompts over the word budget, down from 6 before meta-prompt v2</p></div>
+        <div class="stat"><span class="num" data-count="18">18<small>/22</small></span><p>times a blind judge preferred the forged prompt over the raw request</p></div>
+        <div class="stat"><span class="num" data-count="0">0<small>/22</small></span><p>times the raw request beat the forged prompt (4 ties)</p></div>
         <div class="stat"><span class="num" data-count="102">102<small>/102</small></span><p>tuning cases where every must-keep detail survived, offline</p></div>
         <div class="stat"><span class="num" data-count="0">0<small> keys</small></span><p>secrets sent to a cloud model. Local models run on your machine.</p></div>
       </div>
-      <p class="footnote">Quick check: qwen2.5:7b rewriting, llama3.1:8b judging, each pair judged in both A/B orders, run locally on an M2. One tie, no losses. The full 102-case baseline is in progress.</p>
+      <p class="footnote">qwen2.5:7b rewriting, llama3.1:8b judging, each pair judged blind in both A/B orders, run locally on an M2. 22 cases spread across every kind of request. The harness and every report are in the repository.</p>
+    </div>
+  </section>
+
+  <section class="setup" id="setup">
+    <div class="wrap">
+      <span class="eyebrow">Set up in 2 minutes · free</span>
+      <h2 style="margin-block:14px 12px">Pick where you write.</h2>
+      <p class="setup-lead">Each one works on its own, straight away. Add the free local model (last card) and a model on your own computer writes the prompt instead of the built-in rules. Your words never go to a server.</p>
+      <p class="setup-ok" id="setup-ok" hidden><b>✓ PromptForge is installed.</b> Open ChatGPT, Claude or Gemini, type in the chat box and press <b>✶ Forge</b>. For the best prompts, add the free local model (last card).</p>
+      <div class="setup-grid">
+        <article class="setup-card">
+          <span class="fmt">Chrome · Brave · Edge</span>
+          <h3>Forge button in ChatGPT, Claude and Gemini</h3>
+          <a class="btn holo" href="./downloads/promptforge-chrome.zip" download><span>Download extension (.zip)</span></a>
+          <ol>
+            <li>Unzip it. You get a folder called <code>promptforge-extension</code>.</li>
+            <li>Open <code>chrome://extensions</code> (or <code>brave://extensions</code>, <code>edge://extensions</code>) and turn on <b>Developer mode</b>.</li>
+            <li>Click <b>Load unpacked</b> and pick that folder.</li>
+            <li>Open ChatGPT, Claude or Gemini, type, and press <b>✶ Forge</b> or <kbd>⌥⇧F</kbd> (<kbd>Alt+Shift+F</kbd>).</li>
+          </ol>
+        </article>
+        <article class="setup-card">
+          <span class="fmt">VS Code · Cursor · Antigravity</span>
+          <h3>Forge any selected text in your editor</h3>
+          <a class="btn holo" href="./downloads/promptforge.vsix" download><span>Download extension (.vsix)</span></a>
+          <ol>
+            <li>Open the Extensions panel (<kbd>⌘⇧X</kbd> / <kbd>Ctrl+Shift+X</kbd>).</li>
+            <li>Click the <b>⋯</b> menu at the top, then <b>Install from VSIX…</b>, and pick the file.</li>
+            <li>Select a rough request anywhere and press <kbd>⌥⇧F</kbd> (<kbd>Alt+Shift+F</kbd>). <kbd>⌥⇧W</kbd> opens a page to write in.</li>
+          </ol>
+        </article>
+        <article class="setup-card">
+          <span class="fmt">iPhone · Android</span>
+          <h3>An app on your home screen</h3>
+          <a class="btn ghost" href="./app.html"><span>Open the app →</span></a>
+          <ol>
+            <li>Open it in Safari (iPhone) or Chrome (Android).</li>
+            <li>Tap <b>Share</b> then <b>Add to Home Screen</b> (Android: <b>Install app</b>).</li>
+            <li>Type, convert, copy, and paste into any AI app.</li>
+          </ol>
+        </article>
+        <article class="setup-card">
+          <span class="fmt">Recommended · Mac, Windows, Linux</span>
+          <h3>The free local model</h3>
+          <a class="btn ghost" href="https://ollama.com/download" target="_blank" rel="noopener"><span>Get Ollama ↗</span></a>
+          <ol>
+            <li>Install Ollama and open it once.</li>
+            <li>In a terminal, download the model (about 4.7 GB, needs 8 GB of memory):
+              <div class="cmd small"><code data-copy-src>ollama pull qwen2.5:7b</code><button class="copy" type="button" data-copy>Copy</button></div></li>
+            <li>That's it. The extensions find it on their own. The first prompt takes a little longer while the model loads.</li>
+          </ol>
+        </article>
+      </div>
+      <p class="setup-note">Coming soon to the Chrome Web Store and the VS Code Marketplace, with automatic updates. Until then, download the newest file here to update.</p>
     </div>
   </section>
 
   <section class="final" id="start">
     <div class="wrap">
-      <span class="eyebrow">Free · local · open</span>
+      <span class="eyebrow">Free · local · for developers too</span>
       <h2>Stop writing prompts.<br><span class="holo-text">Start forging them.</span></h2>
       <div class="final-row">
-        <div class="cmd"><code id="cmd"><b>pnpm pf</b> convert -p ollama -m qwen2.5:7b -t claude "explain kubernetes to a beginner"</code><button class="copy" id="copy" type="button">Copy</button></div>
+        <div class="cmd"><code id="cmd"><b>pnpm pf</b> convert -p ollama -t claude "explain kubernetes to a beginner"</code><button class="copy" id="copy" type="button">Copy</button></div>
         <a class="btn holo magnetic" href="https://github.com/swapnilyadv/promteforge" target="_blank" rel="noopener"><span>Star on GitHub ↗</span></a>
       </div>
     </div>
@@ -542,7 +616,7 @@ monsoon balcony, watercolor,
 </main>
 
 <footer>
-  <div class="wrap"><span>PromptForge · rough text in, engineered prompts out</span><span>Browser extension coming in session 7</span></div>
+  <div class="wrap"><span>PromptForge · rough text in, engineered prompts out</span><span>Free · your words stay on your computer</span></div>
 </footer>
 
 <script>
@@ -1002,6 +1076,21 @@ A subject line, then an email under 150 words.
   sheet.addEventListener('click', (e) => { if (e.target === sheet) closeGuide(); });
   addEventListener('keydown', (e) => { if (e.key === 'Escape' && !sheet.hidden) closeGuide(); });
 })();
+</script>
+<script>
+if (new URLSearchParams(location.search).has('installed')) document.getElementById('setup-ok').hidden = false;
+// Fonts and animated sections change the page height while it loads, so a link like /#setup lands off target.
+addEventListener('load', () => {
+  let target = null;
+  try { target = location.hash && document.querySelector(location.hash); } catch { /* not a valid id */ }
+  if (target) setTimeout(() => target.scrollIntoView({ behavior: 'instant' }), 300);
+});
+document.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', async () => {
+  const code = b.parentElement.querySelector('[data-copy-src]');
+  try { await navigator.clipboard.writeText(code.textContent); b.textContent = 'Copied'; }
+  catch { const r = document.createRange(); r.selectNodeContents(code); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); b.textContent = 'Press ⌘C'; }
+  setTimeout(() => (b.textContent = 'Copy'), 1600);
+}));
 </script>
 </body>
 </html>

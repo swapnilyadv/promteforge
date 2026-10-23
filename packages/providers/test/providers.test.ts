@@ -77,6 +77,8 @@ describe('ollama', () => {
     expect(calls[0]!.url).toBe('http://localhost:11434/api/chat');
     expect(JSON.parse(String(calls[0]!.init.body)).model).toBe('qwen2.5:7b');
     expect(JSON.parse(String(calls[0]!.init.body)).keep_alive).toBe('15m');
+    // A rich prompt plus its answer does not fit Ollama's 4096 default; it would silently drop the instructions.
+    expect(JSON.parse(String(calls[0]!.init.body)).options.num_ctx).toBe(8192);
   });
 });
 
