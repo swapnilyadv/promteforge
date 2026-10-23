@@ -1,6 +1,6 @@
 # PromptForge
 
-Turn rough text into a well-engineered prompt with one click, inside ChatGPT, Claude, Gemini, VS Code, Cursor, or on your phone. Free, and your words stay on your computer.
+Turn rough text into a well-engineered prompt with one click, inside ChatGPT, Claude, Gemini, VS Code, Cursor, or on your phone. Free and open source (MIT), and your words stay on your computer.
 
 **Website and live converter:** https://promteforge-orpin.vercel.app/
 
@@ -123,3 +123,7 @@ It builds and tests everything, repackages the editor extension and reinstalls i
 | `pnpm eval` | Score the engine on 100+ cases (add `-p ollama -j anthropic` for model + blind judge) |
 
 Model profiles live in `packages/core/src/profiles/index.ts`; intent templates in `packages/core/src/templates.ts`; the rewriting instructions in `packages/core/src/meta-prompt.ts`. Each has a version number so evals can compare changes.
+
+## License
+
+[MIT](LICENSE) © 2026 Swapnil Yadav. Use it, change it and share it; keep the copyright notice.
