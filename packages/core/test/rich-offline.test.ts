@@ -96,7 +96,7 @@ describe('business websites', () => {
   it('treats a landing page as a showcase site, not a shop', async () => {
     const r = await convert({ text: 'make me a landing page for my bakery in delhi', target: 'chatgpt', strategy: 'auto' });
     expect(r.prompt).toMatch(/^Prompt: Build My Own Bakery Landing Page/);
-    expect(r.prompt).toContain('I want a landing page for my bakery in delhi.');
+    expect(r.prompt).toContain('I want a landing page for my bakery in Delhi.');
     expect(r.prompt).toContain('WhatsApp');
     expect(r.prompt).not.toContain('Admin Dashboard');
     expect(r.prompt).not.toContain('Cart, checkout');

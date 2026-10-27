@@ -13,4 +13,4 @@ export { renderRichOffline, readContext, type RichOffline, type RichContext } fr
 export { validatePrompt, inventedTech, postprocess, keywordRecall, keywords, missingKeywords } from './validate.js';
 export { wordBudget, STYLE_BUDGET, countWords } from './budget.js';
 export { STRATEGIES, APP_DEFAULT_STRATEGY, requestKind, autoStrategy, type RequestKind, DEFAULT_STRATEGY, STYLE_FACTOR, getStrategy, nextStrategy, withOfflineApproach, type Strategy, type StrategyId } from './strategies.js';
-export { basicClean, cleanWithModel, acceptCleaned, stripRequestWrapper } from './clean.js';
+export { basicClean, cleanWithModel, acceptCleaned, stripRequestWrapper, hinglishToEnglish } from './clean.js';

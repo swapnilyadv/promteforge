@@ -1,6 +1,6 @@
 import { ProviderError, type ChatMessage, type Provider } from '@promptforge/providers';
 import { wordBudget } from './budget.js';
-import { basicClean, cleanWithModel, stripRequestWrapper } from './clean.js';
+import { basicClean, cleanWithModel, hinglishToEnglish, stripRequestWrapper } from './clean.js';
 import { classifyIntent } from './intent.js';
 import { confirmIntent } from './intent-confirm.js';
 import { buildMetaPrompt, buildRepairMessages } from './meta-prompt.js';
@@ -153,18 +153,17 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
   // Fix spelling and grammar first, so the rest of the pipeline (and the prompt) works from clean text.
   // With a model it is a short correction call; without one, a light rules-based tidy.
   // "hey chatgpt ... convert this into a prompt" is addressed to PromptForge, not part of the request.
-  const unwrapped = stripRequestWrapper(opts.text);
-  let working = unwrapped;
+  // The rules fix first (typos, shorthand, greetings, a repeated "can you build it for me"), so even when the
+  // model's correction is rejected or there is no model, the prompt never carries the user's typos.
+  let working = stripRequestWrapper(basicClean(hinglishToEnglish(stripRequestWrapper(opts.text))));
   if (opts.provider) {
     const sendSecrets = opts.provider.isLocal || opts.allowSecretsToCloud;
-    const redacted = normalize(unwrapped);
+    const redacted = normalize(working);
     if (sendSecrets || redacted.redactions.length === 0) {
       opts.onStage?.('cleaning');
-      const fixed = await cleanWithModel(opts.provider, unwrapped, { model: opts.model, signal: opts.signal });
+      const fixed = await cleanWithModel(opts.provider, working, { model: opts.model, signal: opts.signal });
       if (fixed) working = fixed;
     }
-  } else {
-    working = basicClean(unwrapped);
   }
   const cleaned = working.trim() !== opts.text.trim() ? working : undefined;
   let a = analyze({ ...opts, text: working });

@@ -254,12 +254,14 @@ export type RequestKind = 'project' | 'task';
 const BUILD = /\b(build|building|builddd*|create|make|develop|design|launch|start|code|program)\b[^.\n]{0,70}\b(apps?|applications?|web ?sites?|web ?apps?|platforms?|systems?|software|games?|bots?|tools?|apis?|stores?|shops?|e-?commerce|startups?|business(es)?|saas|dashboards?|portals?|marketplaces?|extensions?|plugins?|backends?|frontends?|crm|erp|landing pages?)\b/i;
 /** Hinglish puts the thing first: "fitness app banana hai", "website banao", "ecommerce app bana do". */
 const BUILD_HINGLISH = /\b(apps?|applications?|web ?sites?|web ?apps?|platforms?|software|games?|bots?|stores?|shops?|e-?commerce|business|dashboards?|portals?|landing pages?)\b[^.\n]{0,50}\b(banana|banani|banao|bana ?do|bana ?de|banwana|banwani|chahiye|karna hai|start karna)\b/i;
+/** "I need a website with online booking", "looking for an app for my gym": a thing to have built. */
+const BUILD_NEED = /\b(need|want|looking for|require)\s+(?:an?|my own|our own|a new)\s+(?:[\w-]+\s+){0,2}?(apps?|applications?|web ?sites?|web ?apps?|platforms?|stores?|shops?|software|portals?|landing pages?|dashboards?|games?)\b/i;
 const NOT_PROJECT_INTENTS = new Set(['learning', 'email', 'writing', 'research', 'analysis', 'brainstorming', 'debugging', 'image']);
 
 /** Is this something to build (so a full spec makes sense), or a task (an email, a question, a fix)? */
 export function requestKind(text: string, intent: string): RequestKind {
   if (intent === 'agent') return 'project';
-  return (BUILD.test(text) || BUILD_HINGLISH.test(text)) && !NOT_PROJECT_INTENTS.has(intent) ? 'project' : 'task';
+  return (BUILD.test(text) || BUILD_NEED.test(text) || BUILD_HINGLISH.test(text)) && !NOT_PROJECT_INTENTS.has(intent) ? 'project' : 'task';
 }
 
 /** The approach "auto" picks: the full spec for a project, a phased plan for a bug, an expert brief otherwise. */

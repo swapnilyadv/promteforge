@@ -10,6 +10,7 @@
 import type { Structure } from './profiles/index.js';
 import type { StrategyId, RequestKind } from './strategies.js';
 import type { Intent } from './types.js';
+import { BRANDS } from './words.js';
 
 // ---------------------------------------------------------------- knowledge
 
@@ -250,7 +251,6 @@ const SITE: Domain = {
 /** Words that mean the site must take orders, bookings or payments, so it is more than a showcase page. */
 const TRANSACTIONAL = /\b(sell(ing)?|orders?|ordering|book(ing)?|appointments?|checkout|cart|payments?|subscriptions?|log ?in|sign ?up|accounts?)\b/i;
 
-const BRANDS = ['Flipkart', 'Amazon', 'Myntra', 'Meesho', 'Nykaa', 'Swiggy', 'Zomato', 'Uber', 'Ola', 'Airbnb', 'Netflix', 'Instagram', 'Twitter', 'LinkedIn', 'Spotify', 'YouTube', 'Notion', 'Slack', 'Trello', 'Zoom', 'WhatsApp', 'Paytm', 'PhonePe', 'Shopify', 'Etsy', 'Udemy', 'Coursera', 'Duolingo', 'Tinder', 'Practo', 'OYO', 'MakeMyTrip', 'BigBasket', 'Zepto', 'Blinkit', 'Upwork', 'Fiverr', 'Naukri', 'Canva', 'Figma', 'Stripe', 'Discord', 'Reddit', 'Pinterest', 'Snapchat', 'BookMyShow', 'Dunzo', 'Urban Company', 'Cred', 'Groww', 'Zerodha', 'Byju\'s', 'Unacademy'];
 
 type Region = 'india' | 'us' | 'uk' | 'eu' | 'none';
 const REGION_RE: [Region, RegExp][] = [
@@ -306,7 +306,10 @@ export function readContext(text: string, tech: string[] = []): RichContext {
   if (/^(build|create|make|develop|design|start|launch)\b/i.test(request)) request = `I want to ${request.charAt(0).toLowerCase()}${request.slice(1)}`;
   request = request.charAt(0).toUpperCase() + request.slice(1);
   if (!/[.!?]$/.test(request)) request += '.';
-  if (brand) request = request.replace(new RegExp(`\\b${brand.replace(/[.*+?^${}()|[\]\\']/g, '\\$&')}\\b`, 'gi'), brand);
+  if (brand) {
+    // "like Flipkart company" → "like Flipkart".
+    request = request.replace(new RegExp(`\\b${brand.replace(/[.*+?^${}()|[\]\\']/g, '\\$&')}(\\s+company)?\\b`, 'gi'), brand);
+  }
   // "a todo app", "my salon booking website": the words the user used for the thing itself make the best title.
   const named = text.match(/\b(?:an?|my|own)\s+((?:[a-z][a-z-]*\s){0,2}?)(landing page|app|application|website|site|platform|store|game)\b/i);
   const nounWord = named?.[2]?.toLowerCase();

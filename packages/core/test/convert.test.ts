@@ -119,7 +119,8 @@ describe('convert — with a model', () => {
     expect(r.repairs).toBe(0);
     // Meta-prompt carries Claude-specific rules and the user's text
     expect(seen!.messages[0]!.content).toContain('XML');
-    expect(seen!.messages[1]!.content).toContain(BAKERY);
+    // The model gets the message after the rules' spelling fixes ("dont" → "Don't").
+    expect(seen!.messages[1]!.content).toContain("Make me a landing page for my bakery, should look nice and load fast. Don't use bootstrap");
     // A short request gets a short brief: fewer sections, no generic tips, the limit restated last
     const user = seen!.messages[1]!.content;
     expect(user).toContain('use at most 3');
