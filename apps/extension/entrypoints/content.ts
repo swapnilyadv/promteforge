@@ -161,7 +161,7 @@ export default defineContentScript({
     let onAct: (() => void) | null = null;
     let onAct2: (() => void) | null = null;
     /** The last prompt written into a box: what it came from and which approach made it. */
-    let last: { el: Editable; original: string; prompt: string; strategy: StrategyId; kind: RequestKind } | null = null;
+    let last: { el: Editable; original: string; prompt: string; strategy: StrategyId; kind: RequestKind; variant: number } | null = null;
     let hideTimer = 0;
     let toastTimer = 0;
     let frame = 0;
@@ -214,7 +214,7 @@ export default defineContentScript({
     }
 
     /** Run one forge over a port. Resolves with the result; calling `cancel` closes the port, which stops the model. */
-    function forgeOverPort(text: string, strategy: StrategyId | undefined, onProgress: (p: Extract<PortOut, { type: 'progress' }>) => void) {
+    function forgeOverPort(text: string, strategy: StrategyId | undefined, variant: number, onProgress: (p: Extract<PortOut, { type: 'progress' }>) => void) {
       const port = browser.runtime.connect({ name: 'forge' });
       let cancel = () => port.disconnect();
       const done = new Promise<ForgeResponse>((resolve, reject) => {
@@ -232,7 +232,7 @@ export default defineContentScript({
           }
         });
         port.onDisconnect.addListener(() => reject(new Error('The extension stopped answering. Reload this tab and try again.')));
-        port.postMessage({ type: 'forge', text, url: location.href, strategy } satisfies PortIn);
+        port.postMessage({ type: 'forge', text, url: location.href, strategy, variant } satisfies PortIn);
       });
       return { done, cancel: () => cancel() };
     }
@@ -253,7 +253,9 @@ export default defineContentScript({
       // and build it with the next approach. Anything else is a fresh message.
       const again = !!last && last.el === el && same(now, last.prompt);
       const text = again ? last!.original : now;
+      // Every "Another way" is a new type and a new focus; it never runs out.
       const strategy: StrategyId | undefined = again ? nextStrategy(last!.strategy, last!.kind) : undefined;
+      const variant = again ? last!.variant + 1 : 0;
       if (!worthForging(text)) return say(['Type a little more first: a sentence or two.'], { ms: 3500 });
 
       busy = true;
@@ -273,7 +275,7 @@ export default defineContentScript({
         const peek = stage === 'rewriting' && tail && h('div', 'peek', h('span', '', tail));
         say([bold(STAGE_TEXT[stage]), detail, slow, peek], { bar: true, ms: 0, actions: [{ label: 'Cancel', run: () => ((cancelled = true), job.cancel()) }] });
       };
-      const job = forgeOverPort(text, strategy, (p) => {
+      const job = forgeOverPort(text, strategy, variant, (p) => {
         stage = p.stage;
         words = p.words;
         tail = p.tail;
@@ -301,9 +303,9 @@ export default defineContentScript({
         }
         const who = res.mode === 'llm' ? ['by ', bold(res.model ?? 'your model'), ' on this computer'] : ['from ', bold('rules only')];
         const warn = res.warnings[0] && sub(res.warnings[0]);
-        last = { el, original: text, prompt: res.prompt, strategy: res.strategy.id, kind: res.kind };
+        last = { el, original: text, prompt: res.prompt, strategy: res.strategy.id, kind: res.kind, variant: res.variant };
         const fixed = res.cleaned ? ' · spelling fixed' : '';
-        say(['Rewritten for ', bold(res.targetLabel), ' ', ...who, sub('Approach: ', bold(res.strategy.name), ` · ${Math.round(res.kept * 100)}% of your details kept${fixed}`), warn], {
+        say(['Rewritten for ', bold(res.targetLabel), ' ', ...who, sub('Approach: ', bold(res.strategy.name), ...(res.angle ? [' · Focus: ', bold(res.angle.name)] : []), ` · ${Math.round(res.kept * 100)}% of your details kept${fixed}`), warn], {
           actions: [
             { label: 'Another way', run: () => void run() },
             {

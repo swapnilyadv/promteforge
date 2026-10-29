@@ -47,7 +47,7 @@ export default defineBackground(() => {
         let lastSent = 0;
         let stage: Stage = 'cleaning';
         const progress = () => send({ type: 'progress', stage, words: (text.match(/\S+/g) ?? []).length, tail: text.slice(-220) });
-        const result = await forge({ text: req.text, url: req.url, strategy: req.strategy }, await loadSettings(), undefined, undefined, {
+        const result = await forge({ text: req.text, url: req.url, strategy: req.strategy, variant: req.variant }, await loadSettings(), undefined, undefined, {
           signal: abort.signal,
           onStage: (s) => {
             stage = s;

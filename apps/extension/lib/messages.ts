@@ -12,6 +12,10 @@ export type ForgeResponse =
       intent: Intent;
       /** The approach used, so "another way" can move to the next one. */
       strategy: { id: StrategyId; name: string };
+      /** The focus of this version, if any. */
+      angle?: { id: string; name: string };
+      /** Which "Another way" this was (0 = the first prompt). */
+      variant: number;
       /** A project to build or a plain task: decides which approaches "another way" walks through. */
       kind: RequestKind;
       /** The user's message with spelling and grammar fixed, if that changed anything. */
@@ -35,7 +39,7 @@ export type Message =
   | { type: 'status' };
 
 /** Messages on the long-lived 'forge' port: one request in, progress and one result out. */
-export type PortIn = { type: 'forge'; text: string; url: string; strategy?: StrategyId };
+export type PortIn = { type: 'forge'; text: string; url: string; strategy?: StrategyId; variant?: number };
 export type PortOut =
   | { type: 'progress'; stage: Stage; words: number; /** The end of the text written so far, for a live preview. */ tail: string }
   | { type: 'done'; result: ForgeResponse };

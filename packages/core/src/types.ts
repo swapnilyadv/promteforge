@@ -89,6 +89,13 @@ export interface ConvertOptions {
   intent?: Intent;
   /** How to build the prompt. Default 'brief'. 'auto' picks the best fit (full spec for a project to build); asking again with the next one gives a different prompt. */
   strategy?: StrategyId | 'auto';
+  /**
+   * Which "Another way" this is: 0 (or unset) for the first prompt, 1 for the first press, and so on. From 1 on, a
+   * different focus angle is added each time, so every press gives a genuinely new prompt.
+   */
+  variant?: number;
+  /** A focus angle chosen by the user (an id from ANGLES); overrides the one picked from `variant`. */
+  angle?: string;
   /** LLM backend. Omit for the offline, rules-only converter. */
   provider?: Provider;
   model?: string;
@@ -134,6 +141,10 @@ export interface ConvertResult {
   intentSource: 'rules' | 'model' | 'user';
   /** The approach used to build this prompt. */
   strategy: StrategyId;
+  /** The focus angle of this version, if any. */
+  angle?: { id: string; name: string };
+  /** Which "Another way" this was (0 = the first prompt). */
+  variant: number;
   /** A project to build, or a plain task: decides which approaches "another way" walks through. */
   kind: RequestKind;
   /** Your message with spelling and grammar fixed, when that changed anything. */

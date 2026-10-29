@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { nextStrategy, type RequestKind, type StrategyId } from '@promptforge/core';
+import { ANGLES, nextStrategy, STRATEGIES, type RequestKind, type StrategyId } from '@promptforge/core';
 import { listOllamaModels } from '@promptforge/providers';
 import { forgeText, pickRange, STAGE_TEXT, type ForgeOutcome, type ForgeSettings } from './forge.js';
 
@@ -13,7 +13,13 @@ function settings(): ForgeSettings {
 }
 
 /** Run one forge behind a cancellable progress notification. */
-function forgeWithProgress(text: string, editor?: vscode.TextEditor, strategy?: StrategyId): Thenable<ForgeOutcome | undefined> {
+interface Pick {
+  strategy?: StrategyId | 'auto';
+  variant?: number;
+  angle?: string;
+}
+
+function forgeWithProgress(text: string, editor?: vscode.TextEditor, pick: Pick = {}): Thenable<ForgeOutcome | undefined> {
   return vscode.window.withProgress(
     { location: vscode.ProgressLocation.Notification, title: 'PromptForge', cancellable: true },
     async (progress, token) => {
@@ -35,7 +41,7 @@ function forgeWithProgress(text: string, editor?: vscode.TextEditor, strategy?: 
             fileName: editor ? vscode.workspace.asRelativePath(editor.document.fileName) : undefined,
           },
           settings(),
-          { signal: abort.signal, onStage: (s) => ((stage = s), show()), strategy },
+          { signal: abort.signal, onStage: (s) => ((stage = s), show()), ...pick },
         );
       } catch (err) {
         if (abort.signal.aborted) return undefined;
@@ -50,7 +56,7 @@ function forgeWithProgress(text: string, editor?: vscode.TextEditor, strategy?: 
 
 function summary(r: ForgeOutcome): string {
   const who = r.mode === 'llm' ? `by ${r.model} on this computer` : 'from rules only';
-  return `Rewritten for ${r.targetLabel} ${who} · approach: ${r.strategy.name} · ${Math.round(r.kept * 100)}% of your details kept${r.cleaned ? ' · spelling fixed' : ''}`;
+  return `Rewritten for ${r.targetLabel} ${who} · approach: ${r.strategy.name}${r.angle ? ` · focus: ${r.angle.name}` : ''} · ${Math.round(r.kept * 100)}% of your details kept${r.cleaned ? ' · spelling fixed' : ''}`;
 }
 
 async function toClipboard(r: ForgeOutcome): Promise<boolean> {
@@ -60,7 +66,7 @@ async function toClipboard(r: ForgeOutcome): Promise<boolean> {
 }
 
 /** What we last wrote into each document, so pressing Forge on that prompt again means "another way". */
-const lastResult = new Map<string, { original: string; prompt: string; strategy: StrategyId; kind: RequestKind }>();
+const lastResult = new Map<string, { original: string; prompt: string; strategy: StrategyId; kind: RequestKind; variant: number }>();
 const sameText = (a: string, b: string) => a.replace(/\s+/g, ' ').trim() === b.replace(/\s+/g, ' ').trim();
 
 /** The range covering `text` inserted at `start`, counting the document's own line endings. */
@@ -69,7 +75,7 @@ function insertedRange(doc: vscode.TextDocument, start: vscode.Position, text: s
   return new vscode.Range(start, doc.positionAt(doc.offsetAt(start) + length));
 }
 
-async function forgeSelection() {
+async function forgeSelection(chosen?: Pick) {
   const editor = vscode.window.activeTextEditor;
   if (!editor) return void vscode.window.showInformationMessage('PromptForge: open a file or a chat note and select some text first.');
   const sel = editor.selection;
@@ -82,13 +88,18 @@ async function forgeSelection() {
   const key = editor.document.uri.toString();
   const prev = lastResult.get(key);
   const again = !!prev && sameText(pick.text, prev.prompt);
-  const r = await forgeWithProgress(again ? prev!.original : pick.text, editor, again ? nextStrategy(prev!.strategy, prev!.kind) : undefined);
+  // "Another way" never runs out: each press is the next type with a new focus.
+  const r = await forgeWithProgress(
+    again ? prev!.original : pick.text,
+    editor,
+    chosen ?? (again ? { strategy: nextStrategy(prev!.strategy, prev!.kind), variant: prev!.variant + 1 } : {}),
+  );
   if (!r) return;
   // Replace in one edit, so a single Undo (Cmd/Ctrl+Z) restores what was there before.
   const start = range.start;
   const ok = await editor.edit((b) => b.replace(range, r.prompt));
   if (!ok) return void vscode.window.showErrorMessage('PromptForge: the editor refused the change. The prompt was copied instead.');
-  lastResult.set(key, { original: again ? prev!.original : pick.text, prompt: r.prompt, strategy: r.strategy.id, kind: r.kind });
+  lastResult.set(key, { original: again ? prev!.original : pick.text, prompt: r.prompt, strategy: r.strategy.id, kind: r.kind, variant: r.variant });
   // Leave the new prompt selected, so pressing Alt+Shift+F again asks for another way.
   editor.selection = new vscode.Selection(start, insertedRange(editor.document, start, r.prompt).end);
   const copied = await toClipboard(r);
@@ -111,9 +122,24 @@ async function write() {
   const copied = await toClipboard(r);
   const doc = await vscode.workspace.openTextDocument({ content: r.prompt, language: 'markdown' });
   const shown = await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Beside, preserveFocus: false });
-  lastResult.set(doc.uri.toString(), { original: text, prompt: r.prompt, strategy: r.strategy.id, kind: r.kind });
+  lastResult.set(doc.uri.toString(), { original: text, prompt: r.prompt, strategy: r.strategy.id, kind: r.kind, variant: r.variant });
   if (shown?.selection) shown.selection = new vscode.Selection(new vscode.Position(0, 0), insertedRange(doc, new vscode.Position(0, 0), r.prompt).end);
   void vscode.window.showInformationMessage(`${summary(r)}.${copied ? ' Copied: paste it into your chat box.' : ''} Press ${process.platform === 'darwin' ? '⌥⇧F' : 'Alt+Shift+F'} for another way.`);
+}
+
+/** Pick the type and focus yourself, then forge the selection with them. */
+async function forgeWithType() {
+  const type = await vscode.window.showQuickPick(
+    [{ label: 'Best fit', description: 'auto', id: 'auto' as const }, ...STRATEGIES.map((s) => ({ label: s.name, description: s.blurb, id: s.id }))],
+    { title: 'PromptForge: prompt type', placeHolder: 'What kind of prompt do you want?' },
+  );
+  if (!type) return;
+  const focus = await vscode.window.showQuickPick(
+    [{ label: 'No particular focus', description: '', id: '' }, ...ANGLES.map((a) => ({ label: a.name, description: a.focus, detail: a.kind === 'project' ? 'For something to build' : 'For a task', id: a.id }))],
+    { title: 'PromptForge: focus', placeHolder: 'What should this version focus on?', matchOnDescription: true },
+  );
+  if (!focus) return;
+  await forgeSelection({ strategy: type.id, angle: focus.id || undefined });
 }
 
 async function chooseModel() {
@@ -132,7 +158,8 @@ export function activate(context: vscode.ExtensionContext) {
   status.show();
   context.subscriptions.push(
     status,
-    vscode.commands.registerCommand('promptforge.forgeSelection', forgeSelection),
+    vscode.commands.registerCommand('promptforge.forgeSelection', () => forgeSelection()),
+    vscode.commands.registerCommand('promptforge.forgeWithType', forgeWithType),
     vscode.commands.registerCommand('promptforge.write', write),
     vscode.commands.registerCommand('promptforge.chooseModel', chooseModel),
   );

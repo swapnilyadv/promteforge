@@ -62,6 +62,9 @@ p { margin: 0; }
 .try-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .try-pane textarea { flex: 1; min-height: 200px; resize: vertical; width: 100%; background: var(--bg-2); color: var(--fg); border: 1px solid var(--line); border-radius: 14px; padding: 14px; font: 16px/1.5 var(--body); }
 .try-pane textarea:focus { outline: 2px solid var(--heat); outline-offset: 2px; }
+.try-picks { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.try-picks label { display: flex; align-items: center; gap: 8px; font: 12px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); flex: 1 1 200px; min-width: 0; }
+.try-picks select { flex: 1; min-width: 0; text-transform: none; letter-spacing: 0; }
 .try-pane select { background: var(--bg-2); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font: inherit; }
 .try-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .try-out { flex: 1; min-height: 200px; white-space: pre-wrap; word-break: break-word; font: 13.5px/1.6 var(--mono); color: #d9d6de; background: var(--bg-2); border: 1px solid var(--line); border-radius: 14px; padding: 14px; overflow: auto; margin: 0; }
@@ -408,6 +411,10 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
             <select id="try-target" aria-label="Target AI"></select>
           </div>
           <textarea id="try-input" placeholder="e.g. write an email to my landlord about the broken heater, firm but polite" aria-label="Your rough message"></textarea>
+          <div class="try-picks">
+            <label>Type <select id="try-type" aria-label="Prompt type"></select></label>
+            <label>Focus <select id="try-focus" aria-label="Focus"></select></label>
+          </div>
           <div class="try-actions">
             <button class="btn holo magnetic" id="try-go" type="button"><span>Convert to prompt →</span></button>
             <span class="hint">or press ⌘ Enter</span>

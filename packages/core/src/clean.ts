@@ -1,4 +1,5 @@
 import type { Provider } from '@promptforge/providers';
+import { fixGrammar } from './grammar.js';
 import { correctWord } from './spell.js';
 import { BRANDS, CITIES } from './words.js';
 
@@ -121,6 +122,7 @@ export function basicClean(text: string): string {
   // "track there workouts" → "their" (not "there is", "there seems", ...).
   t = t.replace(/\bthere (?=(?!(?:is|was|has|goes|comes|seems|lives|exists|lies|stands|appears|remains|happens)\b)[a-z]{3,}s\b)/g, 'their ');
   t = t.replace(/\bi\b(?!\.\w)/g, 'I');
+  t = fixGrammar(t);
   // A capital after a full stop, except after abbreviations like "e.g." or "etc.".
   t = t.replace(/(^|[^.]\b\w+[.!?]+\s+)([a-z])/g, (m, before: string, c: string) =>
     /\b(e\.g|i\.e|etc|vs|approx|incl)\.\s+$/i.test(before) ? m : before + c.toUpperCase(),

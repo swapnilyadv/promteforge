@@ -46,7 +46,7 @@ vi.mock('vscode', () => ({
 
 vi.mock('@promptforge/providers', async (orig) => ({ ...(await orig<object>()), listOllamaModels: async () => ['qwen2.5:7b'] }));
 
-const outcome = { prompt: '## Goal\nFix the login bug.', mode: 'llm' as const, model: 'qwen2.5:7b', target: 'cursor', targetLabel: 'Cursor', intent: 'debugging', strategy: { id: 'spec', name: 'Full project spec' }, kind: 'project' as const, kept: 1, warnings: [] };
+const outcome = { prompt: '## Goal\nFix the login bug.', mode: 'llm' as const, model: 'qwen2.5:7b', target: 'cursor', targetLabel: 'Cursor', intent: 'debugging', strategy: { id: 'spec', name: 'Full project spec' }, variant: 0, kind: 'project' as const, kept: 1, warnings: [] };
 const forgeText = vi.hoisted(() => vi.fn());
 vi.mock('../src/forge.js', async (orig) => ({ ...(await orig<object>()), forgeText }));
 
@@ -87,7 +87,7 @@ beforeEach(() => {
 
 describe('commands', () => {
   it('registers every command it advertises', () => {
-    expect([...state.commands.keys()].sort()).toEqual(['promptforge.chooseModel', 'promptforge.forgeSelection', 'promptforge.write']);
+    expect([...state.commands.keys()].sort()).toEqual(['promptforge.chooseModel', 'promptforge.forgeSelection', 'promptforge.forgeWithType', 'promptforge.write']);
   });
 
   it('replaces the selection in one edit, copies the prompt, and tells the user how to undo', async () => {
@@ -114,7 +114,7 @@ describe('commands', () => {
     forgeText.mockResolvedValue({ ...outcome, prompt: '## Role\nYou are an expert.', strategy: { id: 'cofounder', name: 'Co-founder brief' } });
     await state.commands.get('promptforge.forgeSelection')!();
     expect(forgeText.mock.calls[1]![0]).toBe('fix the login bug');
-    expect(forgeText.mock.calls[1]![3]).toMatchObject({ strategy: 'cofounder' });
+    expect(forgeText.mock.calls[1]![3]).toMatchObject({ strategy: 'cofounder', variant: 1 });
     expect(state.info.at(-1)).toMatch(/approach: Co-founder brief/);
   });
 

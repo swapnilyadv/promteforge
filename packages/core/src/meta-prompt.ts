@@ -1,3 +1,4 @@
+import type { Angle } from './angles.js';
 import type { ChatMessage } from '@promptforge/providers';
 import type { ModelProfile } from './profiles/index.js';
 import type { IntentTemplate } from './templates.js';
@@ -32,6 +33,8 @@ export interface MetaPromptInput {
   strategy: Strategy;
   /** Built-in notes about this kind of project and its market (rich approaches only). */
   notes?: string[];
+  /** The focus of this version ("Another way" or the user's pick). */
+  angle?: Angle;
 }
 
 /** Rich approaches expand a seed idea into the prompt an expert would write; `brief` stays strict and compact. */
@@ -188,9 +191,12 @@ function userPrompt(m: MetaPromptInput): string {
 }
 
 export function buildMetaPrompt(m: MetaPromptInput): ChatMessage[] {
+  const focus = m.angle
+    ? `\n\nFOCUS FOR THIS VERSION: ${m.angle.name}. ${m.angle.focus} Let this focus shape the roles, the sections, the priorities and the first step, so this prompt is clearly different from a standard version, and include a short section about it (${m.angle.points.join(' ')}).`
+    : '';
   return [
     { role: 'system', content: systemPrompt(m) },
-    { role: 'user', content: userPrompt(m) },
+    { role: 'user', content: userPrompt(m) + focus },
   ];
 }
 

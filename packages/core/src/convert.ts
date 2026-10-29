@@ -8,6 +8,7 @@ import { normalize, restoreSecrets } from './normalize.js';
 import { getProfile, type ModelProfile } from './profiles/index.js';
 import { renderOffline } from './render-offline.js';
 import { projectNotes, renderRichOffline } from './rich-offline.js';
+import { angleFor, getAngle, withAngle } from './angles.js';
 import { autoStrategy, getStrategy, requestKind, STYLE_FACTOR, withOfflineApproach } from './strategies.js';
 import { extractSlots, missingSlots } from './slots.js';
 import { detectTarget } from './target.js';
@@ -182,6 +183,10 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
   }
   const kind = requestKind(working, a.intent);
   const strategy = getStrategy(opts.strategy === 'auto' ? autoStrategy(kind, a.intent) : opts.strategy);
+  const variant = Math.max(0, Math.floor(opts.variant ?? 0));
+  const angle = getAngle(opts.angle) ?? angleFor(variant, kind);
+  // Each "Another way" is a new generation, so let the model range a little wider than the first time.
+  const temperature = Math.min(0.9, strategy.temperature + (variant ? 0.15 : 0));
   const askQuestions = opts.askQuestions ?? true;
   const warnings: string[] = [];
   const { normalized } = a;
@@ -235,7 +240,9 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
       })
     : undefined;
   let prompt = rich?.prompt ?? (a.profile.structure === 'image' ? offline.prompt : withOfflineApproach(offline.prompt, strategy.id, a.profile.structure));
+  if (angle && a.profile.structure !== 'image') prompt = withAngle(prompt, angle, a.profile.structure);
   let changes = rich?.changes ?? offline.changes;
+  if (angle) changes = [...changes, `Focus for this version: ${angle.name}`];
   let mode: ConvertResult['mode'] = 'offline';
   let fallback: ConvertResult['fallback'];
   let repairs = 0;
@@ -272,6 +279,7 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
       language: normalized.language,
       strategy,
       notes: richMode && kind === 'project' ? projectNotes(working, namedTech) : undefined,
+      angle,
       askQuestions,
       alreadyStructured: a.alreadyStructured,
       missing: a.missing,
@@ -282,7 +290,7 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
 
     try {
       opts.onStage?.('rewriting');
-      let draft = postprocess(await runModel(provider, messages, opts, maxTokens, true, strategy.temperature));
+      let draft = postprocess(await runModel(provider, messages, opts, maxTokens, true, temperature));
       let report = validateFor(draft);
 
       // A repair is a second full generation. For the rich approaches (a few hundred words) it is only worth it
@@ -292,7 +300,7 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
         repairs = 1;
         opts.onStage?.('repairing');
         const fixed = postprocess(
-          await runModel(provider, buildRepairMessages(messages, draft, mustFix), opts, maxTokens, false, strategy.temperature),
+          await runModel(provider, buildRepairMessages(messages, draft, mustFix), opts, maxTokens, false, temperature),
         );
         const fixedReport = validateFor(fixed);
         if (fixedReport.issues.length < report.issues.length || fixedReport.ok) {
@@ -311,7 +319,7 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
         validation = report;
         mode = 'llm';
         changes = [
-          `Rewritten for ${a.profile.label} by ${provider.id}${provider.isLocal ? ' (on this computer)' : ''}, approach: ${strategy.name}`,
+          `Rewritten for ${a.profile.label} by ${provider.id}${provider.isLocal ? ' (on this computer)' : ''}, approach: ${strategy.name}${angle ? `, focus: ${angle.name}` : ''}`,
           ...(cleaned ? ['Fixed spelling and grammar in your message'] : []),
           ...offline.changes.slice(0, 4),
         ];
@@ -343,6 +351,8 @@ export async function convert(opts: ConvertOptions): Promise<ConvertResult> {
     intentConfidence: a.intentConfidence,
     intentSource,
     strategy: strategy.id,
+    angle: angle ? { id: angle.id, name: angle.name } : undefined,
+    variant,
     kind,
     cleaned,
     style: a.style,

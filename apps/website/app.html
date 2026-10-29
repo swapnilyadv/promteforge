@@ -42,6 +42,9 @@ header { display: flex; justify-content: space-between; align-items: center; gap
 h1 { font-family: var(--display); font-weight: 300; font-size: clamp(1.6rem, 7vw, 2.4rem); line-height: 1.02; letter-spacing: -0.02em; margin: 6px 0 0; text-wrap: balance; }
 .pane { background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.picks { margin-top: 10px; justify-content: flex-start; }
+.picks label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; flex: 1 1 150px; min-width: 0; }
+.picks select { flex: 1; min-width: 0; }
 select { background: var(--bg-2); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; font: inherit; }
 textarea { width: 100%; min-height: 150px; resize: vertical; background: var(--bg-2); color: var(--fg); border: 1px solid var(--line); border-radius: 14px; padding: 14px; font: 16px/1.5 var(--body); }
 textarea:focus, select:focus, button:focus-visible { outline: 2px solid var(--heat); outline-offset: 2px; }
@@ -77,6 +80,10 @@ pre#try-out.empty { color: var(--muted); font-family: var(--body); font-size: 15
       <select id="try-target" aria-label="Target AI"></select>
     </div>
     <textarea id="try-input" placeholder="e.g. write an email to my landlord about the broken heater, firm but polite" aria-label="Your rough message"></textarea>
+    <div class="row picks">
+      <label>Type <select id="try-type" aria-label="Prompt type"></select></label>
+      <label>Focus <select id="try-focus" aria-label="Focus"></select></label>
+    </div>
     <div class="actions">
       <button class="btn" id="try-go" type="button">Convert to prompt →</button>
     </div>

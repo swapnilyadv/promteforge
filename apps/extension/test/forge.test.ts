@@ -1,10 +1,11 @@
+import { nextStrategy } from '@promptforge/core';
 import { createMock } from '@promptforge/providers';
 import { describe, expect, it } from 'vitest';
 import { forge, pickModel } from '../lib/forge.js';
 import { composerSelectors, worthForging } from '../lib/sites.js';
 import type { Settings } from '../lib/settings.js';
 
-const settings: Settings = { model: '', style: 'balanced', baseUrl: 'http://localhost:11434' };
+const settings: Settings = { model: '', style: 'balanced', baseUrl: 'http://localhost:11434', strategy: 'auto', angle: '' };
 const ROUGH = 'write an email to my landlord about the broken heater, firm but polite';
 const GOOD = '## Role\nYou write clear emails.\n## Goal\nWrite an email to my landlord about the broken heater, firm but polite.\n## Output format\nA subject line and a short email.';
 
@@ -102,5 +103,24 @@ describe('sites', () => {
     expect(worthForging('hi')).toBe(false);
     expect(worthForging('  fix it  ')).toBe(false);
     expect(worthForging('fix this bug please')).toBe(true);
+  });
+});
+
+describe('another way never runs out', () => {
+  it('uses the popup choice first, then a new focus on every press', async () => {
+    const first = await forge({ text: ROUGH, url: 'https://chatgpt.com/' }, { ...settings, strategy: 'interview', angle: 'formal' }, undefined, []);
+    if (!first.ok) throw new Error(first.error);
+    expect(first.strategy.id).toBe('interview');
+    expect(first.angle?.id).toBe('formal');
+    const seen = new Set([first.prompt]);
+    let prev = first;
+    for (let i = 0; i < 12; i++) {
+      const next = await forge({ text: ROUGH, url: 'https://chatgpt.com/', strategy: nextStrategy(prev.strategy.id, prev.kind), variant: prev.variant + 1 }, settings, undefined, []);
+      if (!next.ok) throw new Error(next.error);
+      expect(next.angle).toBeDefined();
+      seen.add(next.prompt);
+      prev = next;
+    }
+    expect(seen.size).toBe(13);
   });
 });

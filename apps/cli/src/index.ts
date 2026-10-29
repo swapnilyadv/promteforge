@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { analyze, APP_DEFAULT_STRATEGY, convert, getStrategy, PROFILES, STRATEGIES, type StrategyId, type Style, type Target } from '@promptforge/core';
+import { analyze, ANGLES, APP_DEFAULT_STRATEGY, convert, getStrategy, PROFILES, STRATEGIES, type StrategyId, type Style, type Target } from '@promptforge/core';
 import {
   createProvider,
   listOllamaModels,
@@ -18,6 +18,7 @@ Usage
   pf analyze [text]        Show detected target, intent, slots and questions (no model)
   pf models                List local Ollama models
   pf targets               List supported targets
+  pf focuses               List the focus angles for --focus
 
 Options
   -t, --target <t>         chatgpt | claude | gemini | vscode | cursor | copilot | perplexity | deepseek | grok | image | generic
@@ -25,6 +26,8 @@ Options
   -s, --style <s>          concise | balanced (default) | detailed
   -a, --approach <a>       auto (default: spec for a project, expert for a task) | spec | cofounder | stepwise | interview | expert | critique | brief, or 1-7
                            A different way to build the prompt for the same request
+      --focus <id>         A focus for this version, e.g. mvp, budget, growth, security, beginner (see: pf focuses)
+  -n, --version <n>        Another way number n (1, 2, 3...): a new type and focus each time
   -p, --provider <p>       offline (default) | ollama | lmstudio | openai | anthropic | gemini | openrouter
   -m, --model <name>       Model name for the provider
   -f, --file <path>        Read text from a file
@@ -98,6 +101,8 @@ async function main() {
       url: { type: 'string', short: 'u' },
       style: { type: 'string', short: 's', default: 'balanced' },
       approach: { type: 'string', short: 'a' },
+      focus: { type: 'string' },
+      version: { type: 'string', short: 'n' },
       provider: { type: 'string', short: 'p', default: 'offline' },
       model: { type: 'string', short: 'm' },
       file: { type: 'string', short: 'f' },
@@ -110,6 +115,10 @@ async function main() {
   const [cmd = 'help', ...rest] = positionals;
   if (values.help || cmd === 'help') return void process.stdout.write(HELP);
 
+  if (cmd === 'focuses') {
+    for (const a of ANGLES) console.log(`${a.id.padEnd(14)} ${a.name.padEnd(28)} ${a.kind}`);
+    return;
+  }
   if (cmd === 'targets') {
     for (const p of Object.values(PROFILES)) console.log(`${p.id.padEnd(11)} ${c.dim(`${p.label} — ${p.structure}`)}`);
     return;
@@ -159,6 +168,8 @@ async function main() {
     return;
   }
 
+  if (values.focus && !ANGLES.some((a) => a.id === values.focus)) throw new Error(`Bad --focus "${values.focus}". Run: pf focuses`);
+
   if (cmd !== 'convert') throw new Error(`Unknown command "${cmd}". Run: pf --help`);
 
   // With Ollama and no --model, use the best model that is actually installed.
@@ -176,6 +187,8 @@ async function main() {
     context,
     style,
     strategy: strategy ?? APP_DEFAULT_STRATEGY,
+    angle: values.focus,
+    variant: values.version ? Number(values.version) : 0,
     askQuestions,
     provider,
     model,

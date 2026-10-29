@@ -37,6 +37,11 @@
         "category": "PromptForge"
       },
       {
+        "command": "promptforge.forgeWithType",
+        "title": "Forge with a Type and Focus…",
+        "category": "PromptForge"
+      },
+      {
         "command": "promptforge.write",
         "title": "Write a Prompt…",
         "category": "PromptForge"

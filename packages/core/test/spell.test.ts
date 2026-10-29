@@ -7,7 +7,7 @@ const clean = (t: string) => stripRequestWrapper(basicClean(hinglishToEnglish(st
 describe('offline spelling', () => {
   it('fixes the misspellings people really type', () => {
     expect(clean('hey iu i want to build an exomcmmer website like wise flipkart company can you build an applicariton for me')).toBe(
-      'I want to build an e-commerce website like Flipkart company',
+      'I want to build an e-commerce website like Flipkart',
     );
     expect(clean('hii bro i want to buld a resturant webiste with onlin ordring and paymnt')).toBe('I want to build a restaurant website with online ordering and payment');
     expect(clean('mak a app for my gym membrs to trak there workots')).toBe('Make an app for my gym members to track their workouts');
@@ -56,4 +56,30 @@ describe('the prompt never repeats the typos', () => {
     expect(r.prompt).toContain('I want to build an e-commerce website like Flipkart.');
     expect(r.prompt).not.toMatch(/exomcmmer|applicariton|\biu\b|like wise|Flipkart company/i);
   });
+});
+
+describe('offline grammar', () => {
+  it.each([
+    ['explain me how compound interest work', 'Explain to me how compound interest works'],
+    ['he dont know how to cook', "He doesn't know how to cook"],
+    ['she have a small business and she want a website', 'She has a small business and she wants a website'],
+    ['me and my friend wants to start a cafe', 'My friend and I want to start a cafe'],
+    ['i am wanting a app which help students for study', 'I want an app which helps students study'],
+    ['can u tell me about how to learn python fastly', 'Can you tell me how to learn Python quickly'],
+    ['write a email to my teacher that i will not able to come tomorrow', 'Write an email to my teacher that I will not be able to come tomorrow'],
+    ['my website is very much slow and it not load on mobile', 'My website is very slow and it does not load on mobile'],
+    ['i want that my app should have login and payment', 'I want my app to have login and payment'],
+    ['give me some idea for my youtube channel', 'Give me some ideas for my YouTube channel'],
+    ['what is the best way for learn english speaking', 'What is the best way to learn English speaking'],
+    ['i am having 2 year experience in java', 'I have 2 years of experience in Java'],
+    ['kindly revert back asap', 'Please reply as soon as possible'],
+    ['i want to build an website for my clothes shop which have online payment', 'I want to build a website for my clothes shop which has online payment'],
+    ['how i can improve my resume', 'How can I improve my resume'],
+    ['tell me how much it will cost for make an app', 'Tell me how much it will cost to make an app'],
+  ])('%s', (input, out) => expect(basicClean(input)).toBe(out));
+
+  it.each(['How does it work', 'Make it work on mobile', 'Does it load fast', 'An hour ago an honest review', 'My products which have discounts', 'There is a bug in my code'])(
+    'leaves correct English alone: %s',
+    (t) => expect(basicClean(t)).toBe(t),
+  );
 });

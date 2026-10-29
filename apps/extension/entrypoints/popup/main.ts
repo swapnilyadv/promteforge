@@ -1,5 +1,6 @@
 import { browser } from 'wxt/browser';
 import type { StatusResponse } from '../../lib/messages.js';
+import { ANGLES, STRATEGIES } from '@promptforge/core';
 import { pickModel } from '../../lib/forge.js';
 import { loadSettings, saveSettings, type Settings } from '../../lib/settings.js';
 
@@ -27,6 +28,22 @@ async function init() {
   const names = status.models.length ? status.models : settings.model ? [settings.model] : [];
   model.innerHTML = names.map((m) => `<option>${m.replace(/[&<>]/g, '')}</option>`).join('') || '<option value="">(none)</option>';
   model.value = pickModel(settings.model, names) ?? '';
+
+  const type = $<HTMLSelectElement>('type');
+  type.add(new Option('Best fit (auto)', 'auto'));
+  for (const s of STRATEGIES) type.add(new Option(s.name, s.id));
+  type.value = settings.strategy || 'auto';
+  const focus = $<HTMLSelectElement>('focus');
+  focus.add(new Option('None', ''));
+  for (const [label, kind] of [['For something to build', 'project'], ['For a task', 'task']] as const) {
+    const group = document.createElement('optgroup');
+    group.label = label;
+    for (const a of ANGLES.filter((x) => x.kind === kind)) group.append(new Option(a.name, a.id));
+    focus.append(group);
+  }
+  focus.value = settings.angle || '';
+  type.addEventListener('change', () => void saveSettings({ strategy: type.value }));
+  focus.addEventListener('change', () => void saveSettings({ angle: focus.value }));
 
   model.addEventListener('change', () => void saveSettings({ model: model.value }));
   style.addEventListener('change', () => void saveSettings({ style: style.value as Settings['style'] }));

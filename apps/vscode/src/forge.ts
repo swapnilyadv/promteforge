@@ -20,6 +20,10 @@ export interface ForgeOutcome {
   intent: string;
   /** The approach used, so "another way" can move on to the next one. */
   strategy: { id: StrategyId; name: string };
+  /** The focus of this version, if any. */
+  angle?: { id: string; name: string };
+  /** Which "Another way" this was (0 = the first prompt). */
+  variant: number;
   /** A project to build or a plain task: decides which approaches "another way" walks through. */
   kind: RequestKind;
   /** The message with spelling and grammar fixed, when that changed anything. */
@@ -37,7 +41,7 @@ export async function forgeText(
   text: string,
   context: ConvertContext,
   s: ForgeSettings,
-  hooks: { signal?: AbortSignal; onStage?: (stage: ForgeStage) => void; strategy?: StrategyId } = {},
+  hooks: { signal?: AbortSignal; onStage?: (stage: ForgeStage) => void; strategy?: StrategyId | 'auto'; variant?: number; angle?: string } = {},
   makeProvider: MakeProvider = ollama,
   installed?: string[],
 ): Promise<ForgeOutcome> {
@@ -55,6 +59,8 @@ export async function forgeText(
     onStage: hooks.onStage,
     // The first Forge picks the approach that fits the request (a full spec for a project); with or without a model.
     strategy: hooks.strategy ?? APP_DEFAULT_STRATEGY,
+    variant: hooks.variant ?? 0,
+    angle: hooks.angle,
   });
   const warnings = [...r.warnings];
   if (!models.length) warnings.unshift('Built by the rules engine on this computer. For an even better prompt, install Ollama and run: ollama pull qwen2.5:7b');
@@ -66,6 +72,8 @@ export async function forgeText(
     targetLabel: PROFILES[r.target].label,
     intent: r.intent,
     strategy: { id: r.strategy, name: getStrategy(r.strategy).name },
+    angle: r.angle,
+    variant: r.variant,
     kind: r.kind,
     cleaned: r.cleaned,
     kept: r.validation.keywordRecall,

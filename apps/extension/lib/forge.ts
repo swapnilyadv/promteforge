@@ -24,7 +24,7 @@ export interface ForgeHooks {
 }
 
 export async function forge(
-  req: { text: string; url: string; strategy?: StrategyId },
+  req: { text: string; url: string; strategy?: StrategyId; variant?: number },
   s: Settings,
   makeProvider: MakeProvider = ollamaProvider,
   installed?: string[],
@@ -39,7 +39,10 @@ export async function forge(
       text,
       context: { url: req.url },
       // The first Forge picks the approach that fits the request (a full spec for a project); with or without a model.
-      strategy: req.strategy ?? APP_DEFAULT_STRATEGY,
+      // The first Forge uses the type and focus picked in the popup; "Another way" sends the next type and a variant.
+      strategy: req.strategy ?? ((s.strategy || APP_DEFAULT_STRATEGY) as StrategyId | 'auto'),
+      variant: req.variant ?? 0,
+      angle: req.variant ? undefined : s.angle || undefined,
       style: s.style,
       provider: models.length ? makeProvider(s, model) : undefined,
       model,
@@ -56,6 +59,8 @@ export async function forge(
       targetLabel: PROFILES[result.target].label,
       intent: result.intent,
       strategy: { id: result.strategy, name: getStrategy(result.strategy).name },
+      angle: result.angle,
+      variant: result.variant,
       kind: result.kind,
       cleaned: result.cleaned,
       mode: result.mode,
